@@ -5,6 +5,8 @@ __pycache__/
 *.key
 *key*.txt
 kalshi*.txt
-.venv/
+*.venv/
 venv/
+*.log
+*.deb
 .DS_Store
