@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Courtside Bet - Kalshi</title>
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: #090d13;
+      color: #f0f6fc;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+
+    /* Top Status Bar */
+    header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .badge {
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .badge-sim {
+      background: #9e6a03;
+      color: #fff8c5;
+    }
+
+    .badge-live {
+      background: #da3633;
+      color: #ffffff;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .ping-display {
+      color: #7ee787;
+      font-family: monospace;
+      font-size: 12px;
+    }
+
+    /* Game Info Header */
+    .game-banner {
+      background: #0d1117;
+      border-bottom: 1px solid #21262d;
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .game-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: #c9d1d9;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 70%;
+    }
+
+    .btn-change-game {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #58a6ff;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    /* Arm / Disarm Slider */
+    .arm-bar {
+      background: #161b22;
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #30363d;
+      flex-shrink: 0;
+    }
+
+    .arm-toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 52px;
+      height: 28px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #30363d;
+      transition: 0.2s;
+      border-radius: 28px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 22px;
+      width: 22px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #fff;
+      transition: 0.2s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: #238636;
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(24px);
+    }
+
+    .arm-label {
+      font-weight: 700;
+      font-size: 13px;
+      color: #8b949e;
+    }
+
+    .arm-label.armed {
+      color: #3fb950;
+      text-shadow: 0 0 8px rgba(63, 185, 80, 0.4);
+    }
+
+    /* Bet Size & Buffer Controls */
+    .config-strip {
+      background: #0d1117;
+      padding: 6px 12px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      overflow-x: auto;
+      border-bottom: 1px solid #21262d;
+      flex-shrink: 0;
+      scrollbar-width: none;
+    }
+    .config-strip::-webkit-scrollbar { display: none; }
+
+    .config-group {
+      display: flex;
+      align-items: center;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 2px 4px;
+      gap: 4px;
+    }
+
+    .config-title {
+      font-size: 11px;
+      color: #8b949e;
+      padding: 0 4px;
+    }
+
+    .pill {
+      background: transparent;
+      border: none;
+      color: #c9d1d9;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .pill.active {
+      background: #388bfd;
+      color: #fff;
+    }
+
+    /* Main Betting Arena: Two Enormous Buttons */
+    .bet-arena {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 12px;
+      position: relative;
+    }
+
+    .team-btn {
+      flex: 1;
+      border-radius: 16px;
+      border: 3px solid transparent;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+      transition: transform 0.05s ease, filter 0.1s ease;
+      touch-action: manipulation;
+    }
+
+    .team-btn:active {
+      transform: scale(0.97);
+    }
+
+    /* Team A: Bold Cyan / Blue */
+    .btn-team-a {
+      background: linear-gradient(145deg, #1f6feb 0%, #1158c7 100%);
+      border-color: #388bfd;
+    }
+
+    /* Team B: Bold Crimson / Orange */
+    .btn-team-b {
+      background: linear-gradient(145deg, #da3633 0%, #a8201d 100%);
+      border-color: #f85149;
+    }
+
+    .team-btn.disarmed {
+      filter: grayscale(85%) opacity(0.5);
+      cursor: not-allowed;
+    }
+
+    .btn-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      text-align: center;
+      padding: 8px;
+    }
+
+    .team-name {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1.1;
+      margin-bottom: 6px;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+
+    .team-action {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 700;
+      opacity: 0.9;
+      margin-bottom: 8px;
+    }
+
+    .price-tag {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 6px 18px;
+      border-radius: 20px;
+      font-size: 28px;
+      font-weight: 900;
+      font-family: monospace;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .price-sub {
+      font-size: 11px;
+      font-family: sans-serif;
+      font-weight: normal;
+      opacity: 0.8;
+      display: block;
+      margin-top: 2px;
+    }
+
+    /* Flash Overlay for instant feedback */
+    #feedbackOverlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease-out;
+      z-index: 999;
+    }
+
+    .flash-success {
+      background: rgba(46, 160, 67, 0.35);
+      border: 8px solid #3fb950;
+      opacity: 1 !important;
+    }
+
+    .flash-error {
+      background: rgba(218, 54, 51, 0.4);
+      border: 8px solid #f85149;
+      opacity: 1 !important;
+    }
+
+    /* Footer Execution Log */
+    footer {
+      background: #161b22;
+      border-top: 1px solid #30363d;
+      padding: 8px 12px;
+      font-size: 12px;
+      flex-shrink: 0;
+      max-height: 75px;
+      overflow-y: auto;
+    }
+
+    .log-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 2px 0;
+      font-family: monospace;
+      border-bottom: 1px solid #21262d;
+    }
+
+    .log-success { color: #3fb950; }
+    .log-error { color: #f85149; }
+
+    /* Modal for Game Search */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      padding: 16px;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      max-height: 90vh;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: #8b949e;
+      font-size: 22px;
+      cursor: pointer;
+    }
+
+    .search-input {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 10px 14px;
+      margin: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .game-list {
+      overflow-y: auto;
+      padding: 0 12px 12px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .game-card {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 10px;
+      cursor: pointer;
+    }
+
+    .game-card:hover, .game-card:active {
+      background: #30363d;
+      border-color: #58a6ff;
+    }
+
+    .game-card-title {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 4px;
+      color: #f0f6fc;
+    }
+
+    .game-card-sub {
+      font-size: 12px;
+      color: #8b949e;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="feedbackOverlay"></div>
+
+  <!-- Status Header -->
+  <header>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span id="envBadge" class="badge badge-sim">SIMULATION</span>
+      <span id="connStatus" style="color: #8b949e;">Connecting...</span>
+    </div>
+    <div class="ping-display" id="pingDisplay">⚡ -- ms</div>
+  </header>
+
+  <!-- Active Game Banner -->
+  <div class="game-banner">
+    <div class="game-title" id="activeGameTitle">Loading Game...</div>
+    <button class="btn-change-game" id="btnOpenModal">Select Game</button>
+  </div>
+
+  <!-- Arm / Disarm Safety Bar -->
+  <div class="arm-bar">
+    <div class="arm-toggle">
+      <label class="switch">
+        <input type="checkbox" id="armSwitch">
+        <span class="slider"></span>
+      </label>
+      <span class="arm-label" id="armStatusLabel">DISARMED</span>
+    </div>
+    <div style="font-size: 11px; color: #8b949e;" id="armedHelp">Arm to activate 1-tap bets</div>
+  </div>
+
+  <!-- Bet Settings Strip -->
+  <div class="config-strip">
+    <div class="config-group">
+      <span class="config-title">BET:</span>
+      <button class="pill active" data-bet="1">$1</button>
+      <button class="pill" data-bet="2">$2</button>
+      <button class="pill" data-bet="5">$5</button>
+      <button class="pill" data-bet="10">$10</button>
+      <button class="pill" data-bet="25">$25</button>
+    </div>
+
+    <div class="config-group">
+      <span class="config-title">SLIPPAGE:</span>
+      <button class="pill" data-buf="0.01">+1¢</button>
+      <button class="pill active" data-buf="0.03">+3¢</button>
+      <button class="pill" data-buf="0.05">+5¢</button>
+      <button class="pill" data-buf="0.10">+10¢</button>
+    </div>
+  </div>
+
+  <!-- Courtside Buttons Arena -->
+  <main class="bet-arena">
+    <!-- Team A Button -->
+    <button class="team-btn btn-team-a disarmed" id="btnTeamA">
+      <div class="btn-content">
+        <div class="team-action">TAP TO BET WINNER</div>
+        <div class="team-name" id="teamAName">Team A</div>
+        <div class="price-tag" id="teamAPrice">--¢</div>
+        <span class="price-sub" id="teamASub">Ask: -- | Bid: --</span>
+      </div>
+    </button>
+
+    <!-- Team B Button -->
+    <button class="team-btn btn-team-b disarmed" id="btnTeamB">
+      <div class="btn-content">
+        <div class="team-action">TAP TO BET WINNER</div>
+        <div class="team-name" id="teamBName">Team B</div>
+        <div class="price-tag" id="teamBPrice">--¢</div>
+        <span class="price-sub" id="teamBSub">Ask: -- | Bid: --</span>
+      </div>
+    </button>
+  </main>
+
+  <!-- Recent Order Feedback Footer -->
+  <footer>
+    <div id="logContainer">
+      <div style="color: #8b949e;">Ready for live courtside actions...</div>
+    </div>
+  </footer>
+
+  <!-- Game Selector Modal -->
+  <div class="modal-overlay" id="gameModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span class="modal-title">Select Live Game</span>
+        <button class="modal-close" id="btnCloseModal">&times;</button>
+      </div>
+      <input type="text" class="search-input" id="gameSearch" placeholder="Search NFL, MLB, NBA, teams..." />
+      <div class="game-list" id="gameList">
+        <div style="color: #8b949e; text-align: center; padding: 20px;">Fetching open games...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let isArmed = false;
+    let currentBetAmount = 1.0;
+    let currentBuffer = 0.03;
+    let ws = null;
+    let pingInterval = null;
+    let lastPingTime = 0;
+    let activeEvent = null;
+
+    // DOM Elements
+    const armSwitch = document.getElementById('armSwitch');
+    const armStatusLabel = document.getElementById('armStatusLabel');
+    const armedHelp = document.getElementById('armedHelp');
+    const btnTeamA = document.getElementById('btnTeamA');
+    const btnTeamB = document.getElementById('btnTeamB');
+    const teamAName = document.getElementById('teamAName');
+    const teamBName = document.getElementById('teamBName');
+    const teamAPrice = document.getElementById('teamAPrice');
+    const teamBPrice = document.getElementById('teamBPrice');
+    const teamASub = document.getElementById('teamASub');
+    const teamBSub = document.getElementById('teamBSub');
+    const activeGameTitle = document.getElementById('activeGameTitle');
+    const pingDisplay = document.getElementById('pingDisplay');
+    const connStatus = document.getElementById('connStatus');
+    const envBadge = document.getElementById('envBadge');
+    const feedbackOverlay = document.getElementById('feedbackOverlay');
+    const logContainer = document.getElementById('logContainer');
+
+    const gameModal = document.getElementById('gameModal');
+    const btnOpenModal = document.getElementById('btnOpenModal');
+    const btnCloseModal = document.getElementById('btnCloseModal');
+    const gameSearch = document.getElementById('gameSearch');
+    const gameList = document.getElementById('gameList');
+
+    // Haptics helper
+    function vibrate(pattern) {
+      if ('vibrate' in navigator) {
+        try { navigator.vibrate(pattern); } catch(e) {}
+      }
+    }
+
+    // Flash feedback
+    function triggerFeedback(type) {
+      feedbackOverlay.className = type === 'success' ? 'flash-success' : 'flash-error';
+      setTimeout(() => {
+        feedbackOverlay.className = '';
+      }, 350);
+    }
+
+    // Arming Toggle
+    armSwitch.addEventListener('change', (e) => {
+      isArmed = e.target.checked;
+      if (isArmed) {
+        armStatusLabel.textContent = 'ARMED';
+        armStatusLabel.className = 'arm-label armed';
+        armedHelp.textContent = '⚡ 1-TAP INSTANT EXECUTION ACTIVE';
+        btnTeamA.classList.remove('disarmed');
+        btnTeamB.classList.remove('disarmed');
+        vibrate([30, 30]);
+      } else {
+        armStatusLabel.textContent = 'DISARMED';
+        armStatusLabel.className = 'arm-label';
+        armedHelp.textContent = 'Arm to activate 1-tap bets';
+        btnTeamA.classList.add('disarmed');
+        btnTeamB.classList.add('disarmed');
+        vibrate(30);
+      }
+    });
+
+    // Pills: Bet Size & Buffer
+    document.querySelectorAll('[data-bet]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-bet]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentBetAmount = parseFloat(btn.getAttribute('data-bet'));
+        vibrate(20);
+      });
+    });
+
+    document.querySelectorAll('[data-buf]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-buf]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentBuffer = parseFloat(btn.getAttribute('data-buf'));
+        vibrate(20);
+      });
+    });
+
+    // Order Execution: Ultra Fast Click Handlers
+    function executeBet(teamSide) {
+      if (!isArmed) {
+        vibrate(100);
+        armedHelp.textContent = '⚠️ SWITCH TO ARMED FIRST!';
+        setTimeout(() => { armedHelp.textContent = 'Arm to activate 1-tap bets'; }, 1500);
+        return;
+      }
+
+      vibrate(40); // Immediate tactile click feedback
+      const clientSendTime = performance.now();
+
+      const payload = {
+        action: "bet",
+        team: teamSide,
+        amount: currentBetAmount,
+        buffer: currentBuffer,
+        client_send_time: clientSendTime
+      };
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload));
+      } else {
+        // Fallback HTTP POST
+        fetch('/api/bet', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(r => r.json()).then(handleOrderResult).catch(err => {
+          triggerFeedback('error');
+          logMessage(`Network Error: ${err.message}`, false);
+        });
+      }
+    }
+
+    btnTeamA.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      executeBet('A');
+    });
+    btnTeamA.addEventListener('click', () => executeBet('A'));
+
+    btnTeamB.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      executeBet('B');
+    });
+    btnTeamB.addEventListener('click', () => executeBet('B'));
+
+    function handleOrderResult(order) {
+      if (order.success) {
+        vibrate([60, 40, 60]); // Success vibration
+        triggerFeedback('success');
+        const priceCents = Math.round(order.price * 100);
+        const costStr = `$${order.total_cost || (order.price * order.count).toFixed(2)}`;
+        const latency = `${order.roundtrip_ms || order.engine_latency_ms}ms`;
+        logMessage(`✅ BOUGHT ${order.team_name} (${order.count}x @ ${priceCents}¢ = ${costStr}) in ${latency}`, true);
+      } else {
+        vibrate([200, 100, 200]); // Error vibration
+        triggerFeedback('error');
+        logMessage(`❌ REJECTED: ${order.error || 'Failed'}`, false);
+      }
+    }
+
+    function logMessage(msg, isSuccess) {
+      const el = document.createElement('div');
+      el.className = `log-item ${isSuccess ? 'log-success' : 'log-error'}`;
+      const timeStr = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      el.textContent = `[${timeStr}] ${msg}`;
+      logContainer.prepend(el);
+      while (logContainer.children.length > 8) {
+        logContainer.removeChild(logContainer.lastChild);
+      }
+    }
+
+    // WebSocket Management
+    function connectWebSocket() {
+      const loc = window.location;
+      const wsProto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProto}//${loc.host}/ws`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        connStatus.textContent = 'Online';
+        connStatus.style.color = '#3fb950';
+        startPing();
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'pong') {
+            const rtt = Math.round(performance.now() - lastPingTime);
+            pingDisplay.textContent = `⚡ ${rtt} ms`;
+          } else if (data.type === 'init' || data.type === 'game_selected') {
+            applyInitialState(data);
+          } else if (data.type === 'quote_update') {
+            updateQuotes(data.team_a, data.team_b);
+          } else if (data.type === 'order_executed') {
+            handleOrderResult(data.order);
+          }
+        } catch(e) {
+          console.error(e);
+        }
+      };
+
+      ws.onclose = () => {
+        connStatus.textContent = 'Disconnected';
+        connStatus.style.color = '#f85149';
+        pingDisplay.textContent = '⚡ -- ms';
+        clearInterval(pingInterval);
+        setTimeout(connectWebSocket, 1500);
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    }
+
+    function startPing() {
+      clearInterval(pingInterval);
+      pingInterval = setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          lastPingTime = performance.now();
+          ws.send(JSON.stringify({ action: 'ping' }));
+        }
+      }, 2000);
+    }
+
+    function applyInitialState(state) {
+      if (state.simulation_mode !== undefined) {
+        if (state.simulation_mode) {
+          envBadge.className = 'badge badge-sim';
+          envBadge.textContent = 'SIMULATION';
+        } else {
+          envBadge.className = 'badge badge-live';
+          envBadge.textContent = 'REAL MONEY';
+        }
+      }
+
+      if (state.active_event) {
+        activeEvent = state.active_event;
+        activeGameTitle.textContent = activeEvent.title || 'Live Game';
+        teamAName.textContent = activeEvent.team_a?.name || 'Team A';
+        teamBName.textContent = activeEvent.team_b?.name || 'Team B';
+        updateQuotes(activeEvent.team_a, activeEvent.team_b);
+      }
+    }
+
+    function updateQuotes(teamA, teamB) {
+      if (teamA) {
+        const askA = teamA.yes_ask !== null ? Math.round(teamA.yes_ask * 100) : (teamA.last_price ? Math.round(teamA.last_price * 100) : '--');
+        const bidA = teamA.yes_bid !== null ? Math.round(teamA.yes_bid * 100) : '--';
+        teamAPrice.textContent = `${askA}¢`;
+        teamASub.textContent = `Ask: ${askA}¢ | Bid: ${bidA}¢`;
+      }
+      if (teamB) {
+        const askB = teamB.yes_ask !== null ? Math.round(teamB.yes_ask * 100) : (teamB.last_price ? Math.round(teamB.last_price * 100) : '--');
+        const bidB = teamB.yes_bid !== null ? Math.round(teamB.yes_bid * 100) : '--';
+        teamBPrice.textContent = `${askB}¢`;
+        teamBSub.textContent = `Ask: ${askB}¢ | Bid: ${bidB}¢`;
+      }
+    }
+
+    // Modal & Game Search
+    btnOpenModal.addEventListener('click', () => {
+      gameModal.classList.add('open');
+      loadGames();
+    });
+
+    btnCloseModal.addEventListener('click', () => {
+      gameModal.classList.remove('open');
+    });
+
+    let searchTimeout = null;
+    gameSearch.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        loadGames(e.target.value);
+      }, 300);
+    });
+
+    async function loadGames(query = '') {
+      gameList.innerHTML = '<div style="color: #8b949e; text-align: center; padding: 20px;">Searching open markets...</div>';
+      try {
+        const res = await fetch(`/api/games?q=${encodeURIComponent(query)}`);
+        const games = await res.json();
+        if (!games || games.length === 0) {
+          gameList.innerHTML = '<div style="color: #8b949e; text-align: center; padding: 20px;">No matching games found.</div>';
+          return;
+        }
+
+        gameList.innerHTML = '';
+        games.forEach(g => {
+          const card = document.createElement('div');
+          card.className = 'game-card';
+          card.innerHTML = `
+            <div class="game-card-title">${g.title}</div>
+            <div class="game-card-sub">${g.team_a.name} vs ${g.team_b.name} (${g.category})</div>
+          `;
+          card.addEventListener('click', async () => {
+            await selectGame(g);
+            gameModal.classList.remove('open');
+          });
+          gameList.appendChild(card);
+        });
+      } catch (err) {
+        gameList.innerHTML = `<div style="color: #f85149; text-align: center; padding: 20px;">Error: ${err.message}</div>`;
+      }
+    }
+
+    async function selectGame(game) {
+      try {
+        const res = await fetch('/api/select_game', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(game)
+        });
+        const data = await res.json();
+        if (data.success) {
+          applyInitialState({ active_event: game });
+          logMessage(`Selected game: ${game.title}`, true);
+        }
+      } catch(e) {
+        logMessage(`Failed to select game: ${e.message}`, false);
+      }
+    }
+
+    // Start WebSocket
+    connectWebSocket();
+  </script>
+</body>
+</html>
