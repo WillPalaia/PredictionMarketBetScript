@@ -11,16 +11,16 @@ from pydantic import BaseModel
 import uvicorn
 
 from config import SERVER_HOST, SERVER_PORT, BASE_DIR
-from engine import CourtsideEngine
+from engine import FastBetEngine
 
 # Global Engine instance
-engine = CourtsideEngine()
+engine = FastBetEngine()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("[Server] Starting Courtside Betting Engine...")
+    print("[Server] Starting FastBet Direct API Engine...")
     await engine.start()
     
     # Auto-load initial live games if none set
@@ -35,11 +35,11 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    print("[Server] Shutting down Courtside Betting Engine...")
+    print("[Server] Shutting down FastBet Direct API Engine...")
     await engine.stop()
 
 
-app = FastAPI(title="Courtside Kalshi Bet Script", lifespan=lifespan)
+app = FastAPI(title="FastBet Kalshi Direct API", lifespan=lifespan)
 
 # Mount static folder
 static_path = BASE_DIR / "static"
@@ -52,7 +52,7 @@ async def serve_index():
     index_file = static_path / "index.html"
     if index_file.exists():
         return FileResponse(str(index_file))
-    return HTMLResponse("<h1>Courtside UI not found in static/index.html</h1>")
+    return HTMLResponse("<h1>FastBet UI not found in static/index.html</h1>")
 
 
 # Request Models
@@ -108,7 +108,7 @@ async def set_manual_game(req: ManualGameRequest):
 async def place_bet(req: BetRequest):
     if req.team.upper() not in ("A", "B"):
         raise HTTPException(status_code=400, detail="Team must be 'A' or 'B'")
-    result = await engine.execute_courtside_bet(
+    result = await engine.execute_direct_bet(
         team_side=req.team.upper(),
         amount_dollars=req.amount,
         buffer_cents=req.buffer
@@ -153,8 +153,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 buffer_val = data.get("buffer")
                 client_send_time = data.get("client_send_time")
 
-                # execute_courtside_bet already broadcasts 'order_executed' to all subscribed websockets
-                await engine.execute_courtside_bet(
+                # execute_direct_bet already broadcasts 'order_executed' to all subscribed websockets
+                await engine.execute_direct_bet(
                     team_side=team_side,
                     amount_dollars=amount,
                     buffer_cents=buffer_val,
@@ -187,13 +187,13 @@ def print_startup_banner():
     ip = get_lan_ip()
     port = SERVER_PORT
     print("\n" + "="*65)
-    print(" >>> COURTSIDE KALSHI BETTING SERVER IS RUNNING <<<")
+    print(" >>> FASTBET KALSHI DIRECT API SERVER IS RUNNING <<<")
     print("="*65)
     print(f" [>] Local Browser:  http://localhost:{port}")
     print(f" [>] Mobile Phone:   http://{ip}:{port}")
     print("="*65)
-    print(" [*] To open on your phone at the game:")
-    print(f" 1. Connect phone to same Wi-Fi/Hotspot as this PC, or use Tailscale/ngrok.")
+    print(" [*] To open on your phone:")
+    print(f" 1. Connect phone to same Wi-Fi/Hotspot as this PC, or use Cloudflare Tunnel.")
     print(f" 2. Navigate to: http://{ip}:{port}")
     print(" 3. Toggle 'ARMED' and tap Team A or Team B to instantly bet!")
     print("="*65 + "\n")

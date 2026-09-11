@@ -17,7 +17,7 @@ from exchange_base import BaseExchange
 
 class KalshiClient(BaseExchange):
     """
-    High-performance Kalshi API client optimized for courtsiding.
+    High-performance Kalshi API client optimized for ultra-low latency direct trading.
     Maintains a pre-warmed HTTP/2 / HTTP/1.1 persistent session,
     in-memory RSA keys for zero-latency signature generation,
     and fast-path order routing.
@@ -41,7 +41,7 @@ class KalshiClient(BaseExchange):
                 base_url=self.base_url,
                 limits=limits,
                 timeout=timeout,
-                headers={"User-Agent": "CourtsideKalshi/1.0", "Accept": "application/json"}
+                headers={"User-Agent": "FastBetKalshi/1.0", "Accept": "application/json"}
             )
             # Pre-warm connection with a quick ping
             try:
@@ -98,7 +98,7 @@ class KalshiClient(BaseExchange):
                     for ev in data.get("events", []):
                         markets = ev.get("markets", [])
                         if len(markets) >= 2:
-                            # Format for courtsiding
+                            # Format for direct betting
                             event_info = self._format_event(ev)
                             if event_info:
                                 if query:

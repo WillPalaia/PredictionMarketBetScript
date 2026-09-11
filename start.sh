@@ -9,7 +9,7 @@ pkill -f "python3 server.py" || true
 pkill -f "cloudflared tunnel" || true
 
 # Start server in background
-echo ">>> Starting Courtside Betting Server..."
+echo ">>> Starting FastBet Server..."
 python3 server.py > server.log 2>&1 &
 SERVER_PID=$!
 sleep 2
@@ -34,7 +34,7 @@ if [ "$1" == "--bg" ] || [ "$1" == "-d" ]; then
         if [ -n "$URL" ]; then
             echo ""
             echo "==================================================================="
-            echo "🔥 COURTSIDE IS RUNNING IN BACKGROUND (24/7 CLOUD MODE) 🔥"
+            echo "🔥 FASTBET IS RUNNING IN BACKGROUND (24/7 CLOUD MODE) 🔥"
             echo "Phone URL: $URL"
             echo "==================================================================="
             echo ">>> You can now CLOSE your terminal and SHUT OFF your computer! <<<"

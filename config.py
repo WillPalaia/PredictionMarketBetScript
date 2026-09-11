@@ -31,7 +31,7 @@ KALSHI_PASSWORD = os.getenv("KALSHI_PASSWORD", "")
 # Excellent for dry runs, testing phone buttons, and testing latency
 SIMULATION_MODE = os.getenv("SIMULATION_MODE", "true").lower() in ("true", "1", "yes")
 
-# Default Courtsiding Betting Parameters
+# Default FastBet Parameters
 DEFAULT_BET_AMOUNT_DOLLARS = float(os.getenv("DEFAULT_BET_AMOUNT_DOLLARS", "1.00"))
 DEFAULT_PRICE_BUFFER_CENTS = float(os.getenv("DEFAULT_PRICE_BUFFER_CENTS", "0.03"))  # +3 cents above ask
 POLL_INTERVAL_SECONDS = float(os.getenv("POLL_INTERVAL_SECONDS", "0.15"))

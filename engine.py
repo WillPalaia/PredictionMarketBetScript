@@ -9,9 +9,9 @@ from config import (
 )
 
 
-class CourtsideEngine:
+class FastBetEngine:
     """
-    Central courtsiding orchestrator.
+    Central fast betting orchestrator.
     Maintains pre-cached real-time quotes for both teams in the active game,
     handles high-speed order calculation and execution, and manages multi-client subscriptions.
     """
@@ -58,7 +58,7 @@ class CourtsideEngine:
                 print(f"[Engine] Broadcast error: {e}")
 
     async def select_game_by_event(self, event_data: Dict[str, Any]):
-        """Set the active game for courtside betting."""
+        """Set the active game for 1-tap direct betting."""
         self.active_event = event_data
         # Immediately fetch initial quotes
         await self._refresh_quotes()
@@ -174,7 +174,7 @@ class CourtsideEngine:
                 "timestamp": time.time()
             })
 
-    async def execute_courtside_bet(
+    async def execute_direct_bet(
         self,
         team_side: str,  # 'A' or 'B'
         amount_dollars: Optional[float] = None,
@@ -183,7 +183,7 @@ class CourtsideEngine:
     ) -> Dict[str, Any]:
         """
         ULTRA-FAST PATH:
-        Triggered directly by the courtsider tapping Team A or Team B button.
+        Triggered directly by tapping Team A or Team B button.
         """
         engine_start = time.perf_counter()
 
