@@ -38,12 +38,25 @@ class KalshiAuth:
             self._load_private_key()
 
     def _load_private_key(self):
-        key_path = Path(self.private_key_path)
-        if not key_path.exists():
-            print(f"[KalshiAuth] Warning: Private key file not found at {self.private_key_path}")
-            return
+        # 1. Direct inline PEM string in .env
+        if "-----BEGIN" in self.private_key_path:
+            key_bytes = self.private_key_path.encode("utf-8")
+        else:
+            # 2. File path (.pem, .key, .txt, etc. - extension does not matter)
+            key_path = Path(self.private_key_path).expanduser()
+            if not key_path.is_absolute() and not key_path.exists():
+                try:
+                    from config import BASE_DIR
+                    if (BASE_DIR / self.private_key_path).exists():
+                        key_path = BASE_DIR / self.private_key_path
+                except Exception:
+                    pass
 
-        key_bytes = key_path.read_bytes()
+            if not key_path.exists():
+                print(f"[KalshiAuth] Warning: Private key file not found at {self.private_key_path}")
+                return
+
+            key_bytes = key_path.read_bytes()
 
         if HAS_CRYPTOGRAPHY:
             try:
