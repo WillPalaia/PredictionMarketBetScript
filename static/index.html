@@ -367,25 +367,84 @@
     /* Footer Execution Log */
     footer {
       background: #161b22;
-      border-top: 1px solid #30363d;
-      padding: 8px 12px;
-      font-size: 12px;
+      border-top: 2px solid #30363d;
+      padding: 10px 12px;
+      font-size: 13px;
       flex-shrink: 0;
-      max-height: 75px;
+      min-height: 140px;
+      max-height: 180px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 -4px 12px rgba(0,0,0,0.3);
+    }
+
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #8b949e;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    #logContainer {
+      flex: 1;
       overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }
 
     .log-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 2px 0;
-      font-family: monospace;
-      border-bottom: 1px solid #21262d;
+      padding: 8px 12px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      animation: log-slide-in 0.2s ease-out;
     }
 
-    .log-success { color: #3fb950; }
-    .log-error { color: #f85149; }
+    @keyframes log-slide-in {
+      0% { transform: translateY(-8px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+
+    .log-success {
+      border-left: 4px solid #3fb950;
+      color: #f0f6fc;
+    }
+
+    .log-error {
+      border-left: 4px solid #f85149;
+      color: #f85149;
+    }
+
+    .log-badge-time {
+      font-family: monospace;
+      font-size: 11px;
+      color: #8b949e;
+      margin-right: 6px;
+    }
+
+    .log-badge-latency {
+      font-family: monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: #7ee787;
+      background: rgba(46, 160, 67, 0.15);
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+      margin-left: 8px;
+    }
 
     /* Modal for Game Search */
     .modal-overlay {
@@ -556,8 +615,12 @@
 
   <!-- Recent Order Feedback Footer -->
   <footer>
+    <div class="log-header">
+      <span>TRADE EXECUTION LOG</span>
+      <span style="font-size: 11px; color: #3fb950; font-weight: 700;">● LIVE FILLS</span>
+    </div>
     <div id="logContainer">
-      <div style="color: #8b949e;">Ready for live courtside actions...</div>
+      <div style="color: #8b949e; text-align: center; padding: 18px 0; font-size: 13px;">Ready for live courtside actions...</div>
     </div>
   </footer>
 
@@ -664,8 +727,21 @@
       });
     });
 
-    // Order Execution: Ultra Fast Click Handlers
+    // Order Execution: Ultra Fast Click Handlers with Debounce Lock
+    let isSubmitting = false;
+    let lastBetTime = 0;
+    const seenOrderIds = new Set();
+
     function executeBet(teamSide) {
+      const now = performance.now();
+      // Lockout window: prevent duplicate events (touchstart + synthetic click) or rapid double-taps
+      if (now - lastBetTime < 400 || isSubmitting) {
+        return;
+      }
+      lastBetTime = now;
+      isSubmitting = true;
+      setTimeout(() => { isSubmitting = false; }, 350);
+
       if (!isArmed) {
         vibrate(100);
         armedHelp.textContent = '⚠️ SWITCH TO ARMED FIRST!';
@@ -700,47 +776,108 @@
     }
 
     function attachTouchHandlers(btn, teamSide) {
+      let touchActive = false;
+
       btn.addEventListener('touchstart', (e) => {
+        touchActive = true;
         btn.classList.add('btn-pressed');
         e.preventDefault();
         executeBet(teamSide);
       }, { passive: false });
 
-      btn.addEventListener('touchend', () => {
+      btn.addEventListener('touchend', (e) => {
         btn.classList.remove('btn-pressed');
-      });
+        e.preventDefault();
+        setTimeout(() => { touchActive = false; }, 150);
+      }, { passive: false });
+
       btn.addEventListener('touchcancel', () => {
         btn.classList.remove('btn-pressed');
+        touchActive = false;
       });
-      btn.addEventListener('click', () => executeBet(teamSide));
+
+      // Desktop click handler (strictly ignored if touch was used)
+      btn.addEventListener('click', (e) => {
+        if (touchActive) {
+          e.preventDefault();
+          return;
+        }
+        executeBet(teamSide);
+      });
     }
 
     attachTouchHandlers(btnTeamA, 'A');
     attachTouchHandlers(btnTeamB, 'B');
 
     function handleOrderResult(order) {
+      if (!order) return;
+      // Deduplicate order notifications by order_id
+      const oid = order.order_id;
+      if (oid && seenOrderIds.has(oid)) {
+        return;
+      }
+      if (oid) {
+        seenOrderIds.add(oid);
+        if (seenOrderIds.size > 100) {
+          const firstKey = seenOrderIds.values().next().value;
+          seenOrderIds.delete(firstKey);
+        }
+      }
+
       if (order.success) {
         vibrate([60, 40, 60]); // Success vibration
         triggerFeedback('success');
         const phoneToExchangeRtt = order.client_send_time ? Math.round(performance.now() - order.client_send_time) : null;
-        const latencyStr = phoneToExchangeRtt ? `${phoneToExchangeRtt}ms (touch-to-fill)` : `${order.roundtrip_ms || order.engine_latency_ms}ms`;
+        const latencyStr = phoneToExchangeRtt ? `${phoneToExchangeRtt}ms` : `${order.roundtrip_ms || order.engine_latency_ms}ms`;
         const priceCents = Math.round(order.price * 100);
         const costStr = `$${order.total_cost || (order.price * order.count).toFixed(2)}`;
-        logMessage(`✅ BOUGHT ${order.team_name} (${order.count}x @ ${priceCents}¢ = ${costStr}) in ${latencyStr}`, true);
+        const summary = `BOUGHT ${order.team_name || order.ticker} (${order.count}x @ ${priceCents}¢ = ${costStr})`;
+        logMessage(summary, true, latencyStr);
       } else {
         vibrate([200, 100, 200]); // Error vibration
         triggerFeedback('error');
-        logMessage(`❌ REJECTED: ${order.error || 'Failed'}`, false);
+        logMessage(`REJECTED: ${order.error || 'Failed'}`, false);
       }
     }
 
-    function logMessage(msg, isSuccess) {
+    function logMessage(msg, isSuccess, latencyStr = null) {
       const el = document.createElement('div');
       el.className = `log-item ${isSuccess ? 'log-success' : 'log-error'}`;
       const timeStr = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      el.textContent = `[${timeStr}] ${msg}`;
+
+      const leftPart = document.createElement('div');
+      leftPart.style.display = 'flex';
+      leftPart.style.alignItems = 'center';
+      leftPart.style.overflow = 'hidden';
+      leftPart.style.textOverflow = 'ellipsis';
+      leftPart.style.whiteSpace = 'nowrap';
+      leftPart.style.gap = '6px';
+
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'log-badge-time';
+      timeSpan.textContent = `[${timeStr}]`;
+      leftPart.appendChild(timeSpan);
+
+      const msgSpan = document.createElement('span');
+      msgSpan.textContent = `${isSuccess ? '✅ ' : '❌ '}${msg}`;
+      leftPart.appendChild(msgSpan);
+
+      el.appendChild(leftPart);
+
+      if (latencyStr) {
+        const latSpan = document.createElement('span');
+        latSpan.className = 'log-badge-latency';
+        latSpan.textContent = `⚡ ${latencyStr}`;
+        el.appendChild(latSpan);
+      }
+
+      // Clear initial placeholder if still present
+      if (logContainer.firstElementChild && logContainer.firstElementChild.textContent.includes('Ready for live')) {
+        logContainer.innerHTML = '';
+      }
+
       logContainer.prepend(el);
-      while (logContainer.children.length > 8) {
+      while (logContainer.children.length > 20) {
         logContainer.removeChild(logContainer.lastChild);
       }
     }

@@ -153,19 +153,13 @@ async def websocket_endpoint(websocket: WebSocket):
                 buffer_val = data.get("buffer")
                 client_send_time = data.get("client_send_time")
 
-                result = await engine.execute_courtside_bet(
+                # execute_courtside_bet already broadcasts 'order_executed' to all subscribed websockets
+                await engine.execute_courtside_bet(
                     team_side=team_side,
                     amount_dollars=amount,
-                    buffer_cents=buffer_val
+                    buffer_cents=buffer_val,
+                    client_send_time=client_send_time
                 )
-                if client_send_time is not None:
-                    result["client_send_time"] = client_send_time
-
-                # Direct response back to this phone
-                await websocket.send_json({
-                    "type": "order_executed",
-                    "order": result
-                })
 
     except WebSocketDisconnect:
         pass

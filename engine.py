@@ -178,7 +178,8 @@ class CourtsideEngine:
         self,
         team_side: str,  # 'A' or 'B'
         amount_dollars: Optional[float] = None,
-        buffer_cents: Optional[float] = None
+        buffer_cents: Optional[float] = None,
+        client_send_time: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         ULTRA-FAST PATH:
@@ -223,6 +224,8 @@ class CourtsideEngine:
         order_result["team_name"] = team_info.get("name")
         order_result["base_price"] = base_price
         order_result["buffer_used"] = buffer
+        if client_send_time is not None:
+            order_result["client_send_time"] = client_send_time
 
         # Store in history
         self.order_history.insert(0, order_result)
