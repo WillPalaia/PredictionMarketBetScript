@@ -3,6 +3,8 @@ __pycache__/
 .env
 *.pem
 *.key
+*key*.txt
+kalshi*.txt
 .venv/
 venv/
 .DS_Store
