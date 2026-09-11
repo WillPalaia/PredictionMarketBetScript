@@ -23,8 +23,39 @@ else
    exit 1
 fi
 
-# Start Cloudflare tunnel
-echo ">>> Starting Cloudflare Tunnel..."
+# Check if background daemon mode was requested
+if [ "$1" == "--bg" ] || [ "$1" == "-d" ]; then
+    echo ">>> Starting Cloudflare Tunnel in background (daemon mode)..."
+    nohup cloudflared tunnel --url http://localhost:8000 > tunnel.log 2>&1 &
+    
+    echo ">>> Waiting for public tunnel URL..."
+    for i in {1..15}; do
+        URL=$(grep -o 'https://[a-zA-Z0-9.-]*\.trycloudflare\.com' tunnel.log 2>/dev/null | head -n 1)
+        if [ -n "$URL" ]; then
+            echo ""
+            echo "==================================================================="
+            echo "🔥 COURTSIDE IS RUNNING IN BACKGROUND (24/7 CLOUD MODE) 🔥"
+            echo "Phone URL: $URL"
+            echo "==================================================================="
+            echo ">>> You can now CLOSE your terminal and SHUT OFF your computer! <<<"
+            echo ">>> The server will keep running 24/7 in Oracle Cloud. <<<"
+            echo ""
+            echo "Useful commands:"
+            echo "  - Check server logs: tail -f server.log"
+            echo "  - Check tunnel logs: tail -f tunnel.log"
+            echo "  - Stop everything:   bash stop.sh"
+            echo ""
+            exit 0
+        fi
+        sleep 1
+    done
+    echo "Tunnel started. Run 'cat tunnel.log' to view the URL."
+    exit 0
+fi
+
+# Foreground mode (default)
+echo ">>> Starting Cloudflare Tunnel (Foreground)..."
+echo ">>> (Tip: Run 'bash start.sh --bg' to run in background so you can shut your computer off)"
 echo ">>> LOOK BELOW FOR YOUR PHONE URL (https://...trycloudflare.com) <<<"
 echo "-------------------------------------------------------------------"
 cloudflared tunnel --url http://localhost:8000
