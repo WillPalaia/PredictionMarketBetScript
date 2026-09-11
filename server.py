@@ -151,12 +151,16 @@ async def websocket_endpoint(websocket: WebSocket):
                 team_side = str(data.get("team", "")).upper()
                 amount = data.get("amount")
                 buffer_val = data.get("buffer")
+                client_send_time = data.get("client_send_time")
 
                 result = await engine.execute_courtside_bet(
                     team_side=team_side,
                     amount_dollars=amount,
                     buffer_cents=buffer_val
                 )
+                if client_send_time is not None:
+                    result["client_send_time"] = client_send_time
+
                 # Direct response back to this phone
                 await websocket.send_json({
                     "type": "order_executed",

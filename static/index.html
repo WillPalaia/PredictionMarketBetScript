@@ -273,8 +273,9 @@
       touch-action: manipulation;
     }
 
-    .team-btn:active {
-      transform: scale(0.97);
+    .team-btn:active, .team-btn.btn-pressed {
+      transform: scale(0.96);
+      filter: brightness(1.2);
     }
 
     /* Team A: Bold Cyan / Blue */
@@ -698,26 +699,34 @@
       }
     }
 
-    btnTeamA.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      executeBet('A');
-    });
-    btnTeamA.addEventListener('click', () => executeBet('A'));
+    function attachTouchHandlers(btn, teamSide) {
+      btn.addEventListener('touchstart', (e) => {
+        btn.classList.add('btn-pressed');
+        e.preventDefault();
+        executeBet(teamSide);
+      }, { passive: false });
 
-    btnTeamB.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      executeBet('B');
-    });
-    btnTeamB.addEventListener('click', () => executeBet('B'));
+      btn.addEventListener('touchend', () => {
+        btn.classList.remove('btn-pressed');
+      });
+      btn.addEventListener('touchcancel', () => {
+        btn.classList.remove('btn-pressed');
+      });
+      btn.addEventListener('click', () => executeBet(teamSide));
+    }
+
+    attachTouchHandlers(btnTeamA, 'A');
+    attachTouchHandlers(btnTeamB, 'B');
 
     function handleOrderResult(order) {
       if (order.success) {
         vibrate([60, 40, 60]); // Success vibration
         triggerFeedback('success');
+        const phoneToExchangeRtt = order.client_send_time ? Math.round(performance.now() - order.client_send_time) : null;
+        const latencyStr = phoneToExchangeRtt ? `${phoneToExchangeRtt}ms (touch-to-fill)` : `${order.roundtrip_ms || order.engine_latency_ms}ms`;
         const priceCents = Math.round(order.price * 100);
         const costStr = `$${order.total_cost || (order.price * order.count).toFixed(2)}`;
-        const latency = `${order.roundtrip_ms || order.engine_latency_ms}ms`;
-        logMessage(`✅ BOUGHT ${order.team_name} (${order.count}x @ ${priceCents}¢ = ${costStr}) in ${latency}`, true);
+        logMessage(`✅ BOUGHT ${order.team_name} (${order.count}x @ ${priceCents}¢ = ${costStr}) in ${latencyStr}`, true);
       } else {
         vibrate([200, 100, 200]); // Error vibration
         triggerFeedback('error');

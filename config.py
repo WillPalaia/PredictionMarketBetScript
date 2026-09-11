@@ -34,7 +34,7 @@ SIMULATION_MODE = os.getenv("SIMULATION_MODE", "true").lower() in ("true", "1", 
 # Default Courtsiding Betting Parameters
 DEFAULT_BET_AMOUNT_DOLLARS = float(os.getenv("DEFAULT_BET_AMOUNT_DOLLARS", "1.00"))
 DEFAULT_PRICE_BUFFER_CENTS = float(os.getenv("DEFAULT_PRICE_BUFFER_CENTS", "0.03"))  # +3 cents above ask
-POLL_INTERVAL_SECONDS = float(os.getenv("POLL_INTERVAL_SECONDS", "0.5"))
+POLL_INTERVAL_SECONDS = float(os.getenv("POLL_INTERVAL_SECONDS", "0.15"))
 
 # Server settings
 SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
