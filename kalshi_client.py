@@ -169,9 +169,25 @@ class KalshiClient(BaseExchange):
         if val is None:
             return None
         try:
-            return float(val)
+            p = float(val)
+            # Kalshi contracts trade between $0.01 and $0.99. If API returns cents (>1.0), normalize to dollars
+            if p > 1.0:
+                p = p / 100.0
+            return p
         except (ValueError, TypeError):
             return None
+
+    async def get_event(self, event_ticker: str) -> Optional[Dict[str, Any]]:
+        """Fetch full event object with nested markets in a single fast HTTP call."""
+        if self.client is None:
+            await self.initialize()
+
+        url = f"/events/{event_ticker}?with_nested_markets=true"
+        resp = await self.client.get(url)
+        if resp.status_code == 200:
+            ev = resp.json().get("event", {})
+            return self._format_event(ev)
+        return None
 
     async def get_market_quote(self, ticker: str) -> Dict[str, Any]:
         """Fetch ultra-fresh orderbook top-of-book for a market ticker."""
@@ -182,9 +198,9 @@ class KalshiClient(BaseExchange):
         resp = await self.client.get(url)
         if resp.status_code == 200:
             m = resp.json().get("market", {})
-            yes_bid = self._parse_price(m.get("yes_bid_dollars") or m.get("yes_bid"))
-            yes_ask = self._parse_price(m.get("yes_ask_dollars") or m.get("yes_ask"))
-            last_price = self._parse_price(m.get("last_price_dollars") or m.get("last_price"))
+            yes_bid = self._parse_price(m.get("yes_bid_dollars") if m.get("yes_bid_dollars") is not None else m.get("yes_bid"))
+            yes_ask = self._parse_price(m.get("yes_ask_dollars") if m.get("yes_ask_dollars") is not None else m.get("yes_ask"))
+            last_price = self._parse_price(m.get("last_price_dollars") if m.get("last_price_dollars") is not None else m.get("last_price"))
             return {
                 "ticker": ticker,
                 "yes_bid": yes_bid,

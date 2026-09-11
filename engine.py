@@ -116,10 +116,38 @@ class CourtsideEngine:
         if not self.active_event:
             return
 
+        # Fast path: single-request event fetch (cuts latency in half)
+        event_ticker = self.active_event.get("event_ticker")
+        if event_ticker and event_ticker != "MANUAL":
+            try:
+                updated_event = await self.client.get_event(event_ticker)
+                if updated_event:
+                    t_a = self.active_event["team_a"]["ticker"]
+                    t_b = self.active_event["team_b"]["ticker"]
+                    for src in [updated_event.get("team_a"), updated_event.get("team_b")]:
+                        if src and src.get("ticker") == t_a:
+                            self.active_event["team_a"]["yes_bid"] = src.get("yes_bid")
+                            self.active_event["team_a"]["yes_ask"] = src.get("yes_ask")
+                            self.active_event["team_a"]["last_price"] = src.get("last_price")
+                        elif src and src.get("ticker") == t_b:
+                            self.active_event["team_b"]["yes_bid"] = src.get("yes_bid")
+                            self.active_event["team_b"]["yes_ask"] = src.get("yes_ask")
+                            self.active_event["team_b"]["last_price"] = src.get("last_price")
+
+                    await self._broadcast({
+                        "type": "quote_update",
+                        "team_a": self.active_event["team_a"],
+                        "team_b": self.active_event["team_b"],
+                        "timestamp": time.time()
+                    })
+                    return
+            except Exception as e:
+                pass
+
+        # Fallback path: parallel per-market quotes
         ticker_a = self.active_event["team_a"]["ticker"]
         ticker_b = self.active_event["team_b"]["ticker"]
 
-        # Parallel quote fetching
         quote_a_task = self.client.get_market_quote(ticker_a)
         quote_b_task = self.client.get_market_quote(ticker_b)
 

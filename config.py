@@ -9,7 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 # Kalshi API Configuration
 # Options: "demo" or "production"
-KALSHI_ENV = os.getenv("KALSHI_ENV", "demo").lower()
+KALSHI_ENV = os.getenv("KALSHI_ENV", "production").lower()
 
 if KALSHI_ENV == "production":
     KALSHI_BASE_URL = "https://external-api.kalshi.com/trade-api/v2"

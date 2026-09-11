@@ -61,9 +61,36 @@
       animation: pulse 1.5s infinite;
     }
 
+    .badge-quotes {
+      background: rgba(35, 134, 54, 0.2);
+      color: #3fb950;
+      border: 1px solid rgba(63, 185, 80, 0.4);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #3fb950;
+      box-shadow: 0 0 5px #3fb950;
+      animation: pulse 1.2s infinite;
+    }
+
+    .price-flash {
+      animation: flash-anim 0.4s ease-out;
+    }
+
+    @keyframes flash-anim {
+      0% { transform: scale(1.12); color: #58a6ff; }
+      100% { transform: scale(1); }
+    }
+
     @keyframes pulse {
       0%, 100% { opacity: 1; }
-      50% { opacity: 0.6; }
+      50% { opacity: 0.5; }
     }
 
     .ping-display {
@@ -459,6 +486,7 @@
   <header>
     <div style="display: flex; align-items: center; gap: 8px;">
       <span id="envBadge" class="badge badge-sim">SIMULATION</span>
+      <span id="liveBadge" class="badge badge-quotes"><span class="pulse-dot"></span> LIVE 0.5s</span>
       <span id="connStatus" style="color: #8b949e;">Connecting...</span>
     </div>
     <div class="ping-display" id="pingDisplay">⚡ -- ms</div>
@@ -787,13 +815,23 @@
       if (teamA) {
         const askA = teamA.yes_ask !== null ? Math.round(teamA.yes_ask * 100) : (teamA.last_price ? Math.round(teamA.last_price * 100) : '--');
         const bidA = teamA.yes_bid !== null ? Math.round(teamA.yes_bid * 100) : '--';
-        teamAPrice.textContent = `${askA}¢`;
+        const newTextA = `${askA}¢`;
+        if (teamAPrice.textContent !== newTextA && teamAPrice.textContent !== '--¢') {
+          teamAPrice.classList.add('price-flash');
+          setTimeout(() => teamAPrice.classList.remove('price-flash'), 400);
+        }
+        teamAPrice.textContent = newTextA;
         teamASub.textContent = `Ask: ${askA}¢ | Bid: ${bidA}¢`;
       }
       if (teamB) {
         const askB = teamB.yes_ask !== null ? Math.round(teamB.yes_ask * 100) : (teamB.last_price ? Math.round(teamB.last_price * 100) : '--');
         const bidB = teamB.yes_bid !== null ? Math.round(teamB.yes_bid * 100) : '--';
-        teamBPrice.textContent = `${askB}¢`;
+        const newTextB = `${askB}¢`;
+        if (teamBPrice.textContent !== newTextB && teamBPrice.textContent !== '--¢') {
+          teamBPrice.classList.add('price-flash');
+          setTimeout(() => teamBPrice.classList.remove('price-flash'), 400);
+        }
+        teamBPrice.textContent = newTextB;
         teamBSub.textContent = `Ask: ${askB}¢ | Bid: ${bidB}¢`;
       }
     }
