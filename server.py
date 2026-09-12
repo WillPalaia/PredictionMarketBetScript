@@ -70,7 +70,7 @@ class BetRequest(BaseModel):
     market_type: Optional[str] = "moneyline"  # 'moneyline', 'spread', 'total'
     line_ticker: Optional[str] = None
     side: Optional[str] = None  # 'yes' or 'no'
-    amount: Optional[float] = None
+    amount: Optional[Any] = None  # float or 'max' / 'all'
     buffer: Optional[float] = None
     price_mode: Optional[str] = "ask"  # 'ask' or 'bid'
     label: Optional[str] = None

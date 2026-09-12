@@ -337,6 +337,19 @@
       color: #fff;
     }
 
+    .pill-max {
+      font-weight: 800;
+      color: #f2cc60;
+      border: 1px dashed rgba(242, 204, 96, 0.4);
+    }
+
+    .pill-max.active {
+      background: #d29922;
+      color: #000;
+      border: 1px solid #e3b341;
+      box-shadow: 0 0 10px rgba(210, 153, 34, 0.5);
+    }
+
     /* Main Betting Arena: Two Enormous Buttons */
     .bet-arena {
       flex: 1;
@@ -665,7 +678,8 @@
       <span id="liveBadge" class="badge badge-quotes"><span class="pulse-dot"></span> LIVE FEED</span>
       <span id="connStatus" style="color: #8b949e;">Connecting...</span>
     </div>
-    <div style="display: flex; align-items: center; gap: 10px;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span id="topBalanceBadge" style="background: rgba(46, 160, 67, 0.15); border: 1px solid rgba(46, 160, 67, 0.4); color: #3fb950; padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 800; font-family: monospace;" title="Live Kalshi Cash Balance">$---.--</span>
       <a href="/stats" style="background: #21262d; border: 1px solid #30363d; color: #58a6ff; text-decoration: none; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">📊 STATS</a>
       <div class="ping-display" id="pingDisplay">⚡ -- ms</div>
     </div>
@@ -717,6 +731,7 @@
       <button class="pill" data-bet="5">$5</button>
       <button class="pill" data-bet="10">$10</button>
       <button class="pill" data-bet="25">$25</button>
+      <button class="pill pill-max" data-bet="max" id="btnBetMax">⚡ MAX</button>
     </div>
 
     <!-- Dynamic Cap Group (Visible in Dynamic Market mode) -->
@@ -812,12 +827,15 @@
     let activeSpreadIdx = 0;
     let activeTotalIdx = 0;
     let activeEvent = null;
+    let liveBalance = 0.0;
 
     let ws = null;
     let pingInterval = null;
     let lastPingTime = 0;
 
     // DOM Elements
+    const topBalanceBadge = document.getElementById('topBalanceBadge');
+    const btnBetMax = document.getElementById('btnBetMax');
     const armSwitch = document.getElementById('armSwitch');
     const armStatusLabel = document.getElementById('armStatusLabel');
     const armedHelp = document.getElementById('armedHelp');
@@ -927,12 +945,28 @@
       });
     });
 
+    // Balance updater
+    function updateBalance(bal) {
+      if (bal === undefined || bal === null) return;
+      liveBalance = parseFloat(bal);
+      if (topBalanceBadge) {
+        topBalanceBadge.textContent = `$${liveBalance.toFixed(2)}`;
+      }
+      if (btnBetMax) {
+        btnBetMax.textContent = liveBalance > 0 ? `⚡ MAX ($${Math.floor(liveBalance)})` : '⚡ MAX';
+      }
+      if (currentBetAmount === 'max') {
+        renderActiveMarket();
+      }
+    }
+
     // Pills: Bet Size
     document.querySelectorAll('[data-bet]').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('[data-bet]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        currentBetAmount = parseFloat(btn.getAttribute('data-bet'));
+        const val = btn.getAttribute('data-bet');
+        currentBetAmount = (val === 'max') ? 'max' : parseFloat(val);
         vibrate(20);
         renderActiveMarket();
       });
@@ -971,17 +1005,38 @@
       });
     });
 
+    // Subtitle formatter with ALL-IN contract estimates
+    function formatSubtitle(isDynamic, isMax, askPrice, targetPrice, capCents, bufCents, otherBid) {
+      if (isDynamic) {
+        const maxFill = askPrice !== null ? Math.min(99, askPrice + capCents) : null;
+        if (isMax && maxFill && liveBalance > 0) {
+          const maxCost = (maxFill / 100) + 0.005;
+          const estCount = Math.max(1, Math.floor(Math.max(0, liveBalance - 0.25) / maxCost));
+          return `ALL-IN: ~${estCount} contracts | Max Fill: ${maxFill}¢ (+${capCents}¢ cap)`;
+        }
+        return `Max Fill: ${maxFill !== null ? maxFill + '¢' : '--'} (+${capCents}¢ cap) | Current Ask: ${askPrice ?? '--'}¢`;
+      } else {
+        if (isMax && targetPrice && liveBalance > 0) {
+          const estCount = Math.max(1, Math.floor(Math.max(0, liveBalance - 0.25) / ((targetPrice / 100) + 0.005)));
+          return `ALL-IN: ~${estCount} contracts | Limit: ${targetPrice}¢`;
+        }
+        return `Ask: ${askPrice ?? '--'}¢ | Bid: ${otherBid ?? '--'}¢ (Buf: +${bufCents}¢)`;
+      }
+    }
+
     // Render Market Display (Buttons & Lines)
     function renderActiveMarket() {
       if (!activeEvent) return;
 
       const isDynamic = (currentOrderType === 'dynamic');
+      const isMax = (currentBetAmount === 'max');
       const capCents = Math.round(currentDynamicCap * 100);
       const bufCents = Math.round(currentBuffer * 100);
 
-      const betTitle = isDynamic 
-        ? `1-TAP $${currentBetAmount} MARKET BET`
-        : `1-TAP $${currentBetAmount} LIMIT BET (${currentPriceTarget.toUpperCase()})`;
+      const balFormatted = liveBalance > 0 ? `$${liveBalance.toFixed(2)}` : '$--';
+      const betTitle = isMax
+        ? (isDynamic ? `⚡ 1-TAP ALL-IN (${balFormatted}) MARKET BET` : `⚡ 1-TAP ALL-IN (${balFormatted}) LIMIT BET`)
+        : (isDynamic ? `1-TAP $${currentBetAmount} MARKET BET` : `1-TAP $${currentBetAmount} LIMIT BET (${currentPriceTarget.toUpperCase()})`);
 
       if (isDynamic) {
         const capText = capCents > 0 ? `+${capCents}¢ DYNAMIC` : 'EXACT PRICE';
@@ -995,7 +1050,6 @@
       if (activeMarketType === 'moneyline') {
         lineSelectorBar.style.display = 'none';
 
-        // Styling
         btnSideA.className = `team-btn btn-theme-blue ${isArmed ? '' : 'disarmed'}`;
         btnSideB.className = `team-btn btn-theme-red ${isArmed ? '' : 'disarmed'}`;
         sideAAction.textContent = betTitle;
@@ -1008,34 +1062,22 @@
           sideAName.textContent = teamA.name || 'Team A';
           const askA = teamA.yes_ask !== null ? Math.round(teamA.yes_ask * 100) : (teamA.last_price ? Math.round(teamA.last_price * 100) : null);
           const bidA = teamA.yes_bid !== null ? Math.round(teamA.yes_bid * 100) : null;
+          const baseA = currentPriceTarget === 'bid' ? (bidA !== null ? bidA : askA) : (askA !== null ? askA : bidA);
+          const targetA = baseA !== null ? Math.min(99, Math.max(1, baseA + bufCents)) : null;
 
-          if (isDynamic) {
-            sideAPrice.textContent = askA !== null ? `${askA}¢` : '--¢';
-            const maxA = askA !== null ? Math.min(99, askA + capCents) : '--';
-            sideASub.textContent = `Max Fill: ${maxA}¢ (+${capCents}¢ cap) | Current Ask: ${askA ?? '--'}¢`;
-          } else {
-            const baseA = currentPriceTarget === 'bid' ? (bidA !== null ? bidA : askA) : (askA !== null ? askA : bidA);
-            const targetA = baseA !== null ? Math.min(99, Math.max(1, baseA + bufCents)) : null;
-            sideAPrice.textContent = targetA !== null ? `${targetA}¢` : '--¢';
-            sideASub.textContent = `Ask: ${askA ?? '--'}¢ | Bid: ${bidA ?? '--'}¢ (Buf: +${bufCents}¢)`;
-          }
+          sideAPrice.textContent = isDynamic ? (askA !== null ? `${askA}¢` : '--¢') : (targetA !== null ? `${targetA}¢` : '--¢');
+          sideASub.textContent = formatSubtitle(isDynamic, isMax, askA, targetA, capCents, bufCents, bidA);
         }
 
         if (teamB) {
           sideBName.textContent = teamB.name || 'Team B';
           const askB = teamB.yes_ask !== null ? Math.round(teamB.yes_ask * 100) : (teamB.last_price ? Math.round(teamB.last_price * 100) : null);
           const bidB = teamB.yes_bid !== null ? Math.round(teamB.yes_bid * 100) : null;
+          const baseB = currentPriceTarget === 'bid' ? (bidB !== null ? bidB : askB) : (askB !== null ? askB : bidB);
+          const targetB = baseB !== null ? Math.min(99, Math.max(1, baseB + bufCents)) : null;
 
-          if (isDynamic) {
-            sideBPrice.textContent = askB !== null ? `${askB}¢` : '--¢';
-            const maxB = askB !== null ? Math.min(99, askB + capCents) : '--';
-            sideBSub.textContent = `Max Fill: ${maxB}¢ (+${capCents}¢ cap) | Current Ask: ${askB ?? '--'}¢`;
-          } else {
-            const baseB = currentPriceTarget === 'bid' ? (bidB !== null ? bidB : askB) : (askA !== null ? askA : bidA);
-            const targetB = baseB !== null ? Math.min(99, Math.max(1, baseB + bufCents)) : null;
-            sideBPrice.textContent = targetB !== null ? `${targetB}¢` : '--¢';
-            sideBSub.textContent = `Ask: ${askB ?? '--'}¢ | Bid: ${bidB ?? '--'}¢ (Buf: +${bufCents}¢)`;
-          }
+          sideBPrice.textContent = isDynamic ? (askB !== null ? `${askB}¢` : '--¢') : (targetB !== null ? `${targetB}¢` : '--¢');
+          sideBSub.textContent = formatSubtitle(isDynamic, isMax, askB, targetB, capCents, bufCents, bidB);
         }
       }
       else if (activeMarketType === 'spread') {
@@ -1085,25 +1127,17 @@
           const dogAsk = activeLine.dog_ask !== null ? Math.round(activeLine.dog_ask * 100) : null;
           const dogBid = activeLine.dog_bid !== null ? Math.round(activeLine.dog_bid * 100) : null;
 
-          if (isDynamic) {
-            sideAPrice.textContent = favAsk !== null ? `${favAsk}¢` : '--¢';
-            const maxFav = favAsk !== null ? Math.min(99, favAsk + capCents) : '--';
-            sideASub.textContent = `Max Fill: ${maxFav}¢ (+${capCents}¢ cap) | Current Ask: ${favAsk ?? '--'}¢`;
+          const baseFav = currentPriceTarget === 'bid' ? (favBid !== null ? favBid : favAsk) : (favAsk !== null ? favAsk : favBid);
+          const targetFav = baseFav !== null ? Math.min(99, Math.max(1, baseFav + bufCents)) : null;
 
-            sideBPrice.textContent = dogAsk !== null ? `${dogAsk}¢` : '--¢';
-            const maxDog = dogAsk !== null ? Math.min(99, dogAsk + capCents) : '--';
-            sideBSub.textContent = `Max Fill: ${maxDog}¢ (+${capCents}¢ cap) | Current Ask: ${dogAsk ?? '--'}¢`;
-          } else {
-            const baseFav = currentPriceTarget === 'bid' ? (favBid !== null ? favBid : favAsk) : (favAsk !== null ? favAsk : favBid);
-            const targetFav = baseFav !== null ? Math.min(99, Math.max(1, baseFav + bufCents)) : null;
-            sideAPrice.textContent = targetFav !== null ? `${targetFav}¢` : '--¢';
-            sideASub.textContent = `Ask: ${favAsk ?? '--'}¢ | Bid: ${favBid ?? '--'}¢ (Buf: +${bufCents}¢)`;
+          const baseDog = currentPriceTarget === 'bid' ? (dogBid !== null ? dogBid : dogAsk) : (dogAsk !== null ? dogAsk : dogBid);
+          const targetDog = baseDog !== null ? Math.min(99, Math.max(1, baseDog + bufCents)) : null;
 
-            const baseDog = currentPriceTarget === 'bid' ? (dogBid !== null ? dogBid : dogAsk) : (dogAsk !== null ? dogAsk : dogBid);
-            const targetDog = baseDog !== null ? Math.min(99, Math.max(1, baseDog + bufCents)) : null;
-            sideBPrice.textContent = targetDog !== null ? `${targetDog}¢` : '--¢';
-            sideBSub.textContent = `Ask: ${dogAsk ?? '--'}¢ | Bid: ${dogBid ?? '--'}¢ (Buf: +${bufCents}¢)`;
-          }
+          sideAPrice.textContent = isDynamic ? (favAsk !== null ? `${favAsk}¢` : '--¢') : (targetFav !== null ? `${targetFav}¢` : '--¢');
+          sideASub.textContent = formatSubtitle(isDynamic, isMax, favAsk, targetFav, capCents, bufCents, favBid);
+
+          sideBPrice.textContent = isDynamic ? (dogAsk !== null ? `${dogAsk}¢` : '--¢') : (targetDog !== null ? `${targetDog}¢` : '--¢');
+          sideBSub.textContent = formatSubtitle(isDynamic, isMax, dogAsk, targetDog, capCents, bufCents, dogBid);
         }
       }
       else if (activeMarketType === 'total') {
@@ -1153,25 +1187,17 @@
           const underAsk = activeLine.under_ask !== null ? Math.round(activeLine.under_ask * 100) : null;
           const underBid = activeLine.under_bid !== null ? Math.round(activeLine.under_bid * 100) : null;
 
-          if (isDynamic) {
-            sideAPrice.textContent = overAsk !== null ? `${overAsk}¢` : '--¢';
-            const maxOver = overAsk !== null ? Math.min(99, overAsk + capCents) : '--';
-            sideASub.textContent = `Max Fill: ${maxOver}¢ (+${capCents}¢ cap) | Current Ask: ${overAsk ?? '--'}¢`;
+          const baseOver = currentPriceTarget === 'bid' ? (overBid !== null ? overBid : overAsk) : (overAsk !== null ? overAsk : overBid);
+          const targetOver = baseOver !== null ? Math.min(99, Math.max(1, baseOver + bufCents)) : null;
 
-            sideBPrice.textContent = underAsk !== null ? `${underAsk}¢` : '--¢';
-            const maxUnder = underAsk !== null ? Math.min(99, underAsk + capCents) : '--';
-            sideBSub.textContent = `Max Fill: ${maxUnder}¢ (+${capCents}¢ cap) | Current Ask: ${underAsk ?? '--'}¢`;
-          } else {
-            const baseOver = currentPriceTarget === 'bid' ? (overBid !== null ? overBid : overAsk) : (overAsk !== null ? overAsk : overBid);
-            const targetOver = baseOver !== null ? Math.min(99, Math.max(1, baseOver + bufCents)) : null;
-            sideAPrice.textContent = targetOver !== null ? `${targetOver}¢` : '--¢';
-            sideASub.textContent = `Ask: ${overAsk ?? '--'}¢ | Bid: ${overBid ?? '--'}¢ (Buf: +${bufCents}¢)`;
+          const baseUnder = currentPriceTarget === 'bid' ? (underBid !== null ? underBid : underAsk) : (underAsk !== null ? underAsk : underBid);
+          const targetUnder = baseUnder !== null ? Math.min(99, Math.max(1, baseUnder + bufCents)) : null;
 
-            const baseUnder = currentPriceTarget === 'bid' ? (underBid !== null ? underBid : underAsk) : (underAsk !== null ? underAsk : underBid);
-            const targetUnder = baseUnder !== null ? Math.min(99, Math.max(1, baseUnder + bufCents)) : null;
-            sideBPrice.textContent = targetUnder !== null ? `${targetUnder}¢` : '--¢';
-            sideBSub.textContent = `Ask: ${underAsk ?? '--'}¢ | Bid: ${underBid ?? '--'}¢ (Buf: +${bufCents}¢)`;
-          }
+          sideAPrice.textContent = isDynamic ? (overAsk !== null ? `${overAsk}¢` : '--¢') : (targetOver !== null ? `${targetOver}¢` : '--¢');
+          sideASub.textContent = formatSubtitle(isDynamic, isMax, overAsk, targetOver, capCents, bufCents, overBid);
+
+          sideBPrice.textContent = isDynamic ? (underAsk !== null ? `${underAsk}¢` : '--¢') : (targetUnder !== null ? `${targetUnder}¢` : '--¢');
+          sideBSub.textContent = formatSubtitle(isDynamic, isMax, underAsk, targetUnder, capCents, bufCents, underBid);
         }
       }
     }
@@ -1382,8 +1408,10 @@
             const rtt = Math.round(performance.now() - lastPingTime);
             pingDisplay.textContent = `⚡ ${rtt} ms`;
           } else if (data.type === 'init' || data.type === 'game_selected') {
+            if (data.balance !== undefined) updateBalance(data.balance);
             applyInitialState(data);
           } else if (data.type === 'quote_update') {
+            if (data.balance !== undefined) updateBalance(data.balance);
             if (activeEvent) {
               if (data.team_a) activeEvent.team_a = data.team_a;
               if (data.team_b) activeEvent.team_b = data.team_b;
@@ -1393,6 +1421,9 @@
             }
           } else if (data.type === 'order_executed') {
             handleOrderResult(data.order);
+            fetch('/api/balance').then(r => r.json()).then(b => {
+              if (b && b.balance_dollars !== undefined) updateBalance(b.balance_dollars);
+            }).catch(() => {});
           }
         } catch(e) {
           console.error(e);
@@ -1431,6 +1462,10 @@
           envBadge.className = 'badge badge-live';
           envBadge.textContent = 'REAL MONEY';
         }
+      }
+
+      if (state.balance !== undefined) {
+        updateBalance(state.balance);
       }
 
       if (state.active_event) {
@@ -1506,8 +1541,11 @@
       }
     }
 
-    // Connect WebSocket on load
+    // Connect WebSocket and fetch initial balance on load
     connectWebSocket();
+    fetch('/api/balance').then(r => r.json()).then(b => {
+      if (b && b.balance_dollars !== undefined) updateBalance(b.balance_dollars);
+    }).catch(() => {});
   </script>
 </body>
 </html>

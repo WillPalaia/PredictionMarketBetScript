@@ -29,13 +29,26 @@ class FastBetEngine:
         self._poll_task: Optional[asyncio.Task] = None
         self._subscribers: List[Callable[[Dict[str, Any]], Any]] = []
         self.order_history: List[Dict[str, Any]] = []
+        self.cached_balance: float = 0.0
+        self._balance_counter: int = 0
         self.is_running = False
 
     async def start(self):
         """Initializes client and background price streamer."""
         await self.client.initialize()
         self.is_running = True
+        await self.refresh_balance()
         self._poll_task = asyncio.create_task(self._price_stream_loop())
+
+    async def refresh_balance(self) -> float:
+        """Fetches live account balance from Kalshi and caches it."""
+        try:
+            res = await self.client.get_balance()
+            if isinstance(res, dict) and "balance_dollars" in res:
+                self.cached_balance = round(float(res["balance_dollars"]), 2)
+        except Exception as e:
+            print(f"[Engine] Balance refresh error: {e}")
+        return self.cached_balance
 
     async def stop(self):
         self.is_running = False
@@ -155,6 +168,10 @@ class FastBetEngine:
         """Continuously polls orderbook quotes at low interval to ensure zero-stale data."""
         while self.is_running:
             try:
+                self._balance_counter += 1
+                if self._balance_counter % 30 == 0:  # Refresh balance every ~4.5 seconds
+                    await self.refresh_balance()
+
                 if self.active_event:
                     await self._refresh_quotes()
             except asyncio.CancelledError:
@@ -194,6 +211,7 @@ class FastBetEngine:
                         "team_b": self.active_event["team_b"],
                         "spread": self.active_event.get("spread", []),
                         "total": self.active_event.get("total", []),
+                        "balance": self.cached_balance,
                         "timestamp": time.time()
                     })
                     return
@@ -230,6 +248,7 @@ class FastBetEngine:
                 "team_b": self.active_event["team_b"],
                 "spread": self.active_event.get("spread", []),
                 "total": self.active_event.get("total", []),
+                "balance": self.cached_balance,
                 "timestamp": time.time()
             })
 
@@ -393,8 +412,38 @@ class FastBetEngine:
         if not ticker:
             return {"success": False, "error": "Unable to determine contract ticker"}
 
-        # Calculate contract count based on target dollar amount
-        count = max(1, int(round(target_dollars / contract_cost)))
+        # Calculate contract count based on target dollar amount or MAX remaining balance
+        is_all_in = str(amount_dollars).lower() in ("max", "all", "all_in", "balance", "-1")
+
+        if is_all_in:
+            if self.cached_balance <= 0:
+                await self.refresh_balance()
+
+            avail_balance = self.cached_balance
+            if avail_balance <= 0.50:
+                return {
+                    "success": False,
+                    "error": f"Insufficient balance for Max Bet (${avail_balance:.2f} available)"
+                }
+
+            # Use maximum possible execution price (limit_price) so dynamic slippage never exceeds balance
+            max_execution_price = contract_cost if p_mode == "dynamic" and buffer <= 0 else max(contract_cost, limit_price if v2_side == "bid" else round(1.0 - limit_price, 2))
+            max_execution_price = max(0.01, min(0.99, max_execution_price))
+
+            # Kalshi fee cushion: max fee on taker order is ~0.07 * price * (1 - price)
+            fee_per_contract = min(0.02, 0.07 * max_execution_price * (1.0 - max_execution_price) + 0.002)
+            effective_unit_cost = max_execution_price + fee_per_contract
+
+            # Keep a tiny 25¢ cushion so order is 100% accepted by Kalshi without "insufficient funds" rejection
+            usable_cash = max(0.0, avail_balance - 0.25)
+            count = max(1, int(usable_cash / effective_unit_cost))
+            target_dollars = round(count * contract_cost, 2)
+        else:
+            try:
+                target_dollars = float(amount_dollars) if amount_dollars and float(amount_dollars) > 0 else self.default_bet_amount
+            except (ValueError, TypeError):
+                target_dollars = self.default_bet_amount
+            count = max(1, int(round(target_dollars / contract_cost)))
 
         # Time-in-force: dynamic orders use IOC (immediate or cancel); custom limit orders use GTC (resting)
         tif = "immediate_or_cancel" if p_mode == "dynamic" else "good_till_canceled"
@@ -435,6 +484,8 @@ class FastBetEngine:
             try:
                 # Offload to background thread pool to guarantee ZERO latency impact on critical order execution path
                 asyncio.create_task(asyncio.to_thread(AnalyticsManager.record_trade, order_result.copy()))
+                # Asynchronously refresh cached balance after order
+                asyncio.create_task(self.refresh_balance())
             except Exception as e:
                 print(f"[Engine] Analytics record error: {e}")
         else:
@@ -465,5 +516,6 @@ class FastBetEngine:
             "default_bet_amount": self.default_bet_amount,
             "default_buffer": self.default_buffer,
             "default_price_mode": self.default_price_mode,
+            "balance": self.cached_balance,
             "history": self.order_history[:10]
         }
