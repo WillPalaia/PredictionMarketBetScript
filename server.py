@@ -64,6 +64,30 @@ async def serve_stats():
     return HTMLResponse("<h1>FastBet Stats UI not found in static/stats.html</h1>")
 
 
+@app.get("/preview", response_class=HTMLResponse)
+async def serve_preview():
+    hub_file = static_path / "preview_hub.html"
+    if hub_file.exists():
+        return FileResponse(str(hub_file))
+    return FileResponse(str(static_path / "react_preview.html"))
+
+
+@app.get("/preview/react", response_class=HTMLResponse)
+async def serve_preview_react():
+    f = static_path / "react_preview.html"
+    if f.exists():
+        return FileResponse(str(f))
+    return HTMLResponse("<h1>React preview not found</h1>")
+
+
+@app.get("/preview/terminal", response_class=HTMLResponse)
+async def serve_preview_terminal():
+    f = static_path / "terminal_preview.html"
+    if f.exists():
+        return FileResponse(str(f))
+    return HTMLResponse("<h1>Terminal preview not found</h1>")
+
+
 # Request Models
 class BetRequest(BaseModel):
     team: Optional[str] = "A"  # 'A', 'B', 'over', 'under'
