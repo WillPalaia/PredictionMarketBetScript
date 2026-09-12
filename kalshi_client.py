@@ -191,17 +191,17 @@ class KalshiClient(BaseExchange):
                 "name": team_a_name,
                 "ticker": m_a.get("ticker"),
                 "title": m_a.get("title"),
-                "yes_bid": self._parse_price(m_a.get("yes_bid") or m_a.get("yes_bid_dollars")),
-                "yes_ask": self._parse_price(m_a.get("yes_ask") or m_a.get("yes_ask_dollars")),
-                "last_price": self._parse_price(m_a.get("last_price") or m_a.get("last_price_dollars"))
+                "yes_bid": self._parse_price(m_a.get("yes_bid_dollars") if m_a.get("yes_bid_dollars") is not None else m_a.get("yes_bid")),
+                "yes_ask": self._parse_price(m_a.get("yes_ask_dollars") if m_a.get("yes_ask_dollars") is not None else m_a.get("yes_ask")),
+                "last_price": self._parse_price(m_a.get("last_price_dollars") if m_a.get("last_price_dollars") is not None else m_a.get("last_price"))
             },
             "team_b": {
                 "name": team_b_name,
                 "ticker": m_b.get("ticker"),
                 "title": m_b.get("title"),
-                "yes_bid": self._parse_price(m_b.get("yes_bid") or m_b.get("yes_bid_dollars")),
-                "yes_ask": self._parse_price(m_b.get("yes_ask") or m_b.get("yes_ask_dollars")),
-                "last_price": self._parse_price(m_b.get("last_price") or m_b.get("last_price_dollars"))
+                "yes_bid": self._parse_price(m_b.get("yes_bid_dollars") if m_b.get("yes_bid_dollars") is not None else m_b.get("yes_bid")),
+                "yes_ask": self._parse_price(m_b.get("yes_ask_dollars") if m_b.get("yes_ask_dollars") is not None else m_b.get("yes_ask")),
+                "last_price": self._parse_price(m_b.get("last_price_dollars") if m_b.get("last_price_dollars") is not None else m_b.get("last_price"))
             }
         }
 
@@ -245,7 +245,9 @@ class KalshiClient(BaseExchange):
             "spread": [],
             "total": [],
             "spread_ticker": None,
-            "total_ticker": None
+            "total_ticker": None,
+            "primary_spread_idx": 0,
+            "primary_total_idx": 0
         }
 
         # Derive spread and total event tickers from standard Kalshi naming pattern
@@ -333,6 +335,18 @@ class KalshiClient(BaseExchange):
                 if n_bid is None and y_ask is not None:
                     n_bid = round(1.0 - y_ask, 2)
 
+                vol_24h = float(m.get("volume_24h_fp") or 0.0)
+                bid_sz = float(m.get("yes_bid_size_fp") or 0.0)
+                ask_sz = float(m.get("yes_ask_size_fp") or 0.0)
+                oi = float(m.get("open_interest_fp") or 0.0)
+                total_sz = bid_sz + ask_sz
+
+                # Price proximity to 50 cents (the active line where market is balanced)
+                price_mid = ((y_ask or 0.50) + (y_bid or 0.50)) / 2.0
+                dist_50 = abs(price_mid - 0.50)
+                prox_weight = max(0.05, 1.0 - (dist_50 * 1.8))
+                score = (total_sz + vol_24h * 1.5 + oi * 0.1) * prox_weight
+
                 bundle["spread"].append({
                     "ticker": m.get("ticker"),
                     "strike": strike,
@@ -344,8 +358,23 @@ class KalshiClient(BaseExchange):
                     "fav_ask": y_ask,
                     "dog_bid": n_bid,
                     "dog_ask": n_ask,
+                    "liquidity_size": int(total_sz),
+                    "volume_24h": round(vol_24h, 2),
+                    "primary_score": round(score, 2),
                     "status": m.get("status", "active")
                 })
+
+            # Sort spreads: Team A lines first (by strike), then Team B lines (by strike)
+            bundle["spread"].sort(key=lambda x: (0 if x["team_fav"] == team_a_name else 1, x["strike"] if x["strike"] is not None else 0))
+
+            # Automatically select primary (most liquid) spread line
+            if bundle["spread"]:
+                best_sp_idx = max(range(len(bundle["spread"])), key=lambda i: bundle["spread"][i].get("primary_score", 0))
+                bundle["primary_spread_idx"] = best_sp_idx
+                for idx, item in enumerate(bundle["spread"]):
+                    item["is_primary"] = (idx == best_sp_idx)
+            else:
+                bundle["primary_spread_idx"] = 0
 
         # 3. Parse Total (Over/Under) Lines
         if isinstance(res_total, dict) and res_total:
@@ -362,6 +391,18 @@ class KalshiClient(BaseExchange):
                 if n_bid is None and y_ask is not None:
                     n_bid = round(1.0 - y_ask, 2)
 
+                vol_24h = float(m.get("volume_24h_fp") or 0.0)
+                bid_sz = float(m.get("yes_bid_size_fp") or 0.0)
+                ask_sz = float(m.get("yes_ask_size_fp") or 0.0)
+                oi = float(m.get("open_interest_fp") or 0.0)
+                total_sz = bid_sz + ask_sz
+
+                # Price proximity to 50 cents (the active line where market is balanced)
+                price_mid = ((y_ask or 0.50) + (y_bid or 0.50)) / 2.0
+                dist_50 = abs(price_mid - 0.50)
+                prox_weight = max(0.05, 1.0 - (dist_50 * 1.8))
+                score = (total_sz + vol_24h * 1.5 + oi * 0.1) * prox_weight
+
                 bundle["total"].append({
                     "ticker": m.get("ticker"),
                     "strike": strike,
@@ -371,9 +412,22 @@ class KalshiClient(BaseExchange):
                     "over_ask": y_ask,
                     "under_bid": n_bid,
                     "under_ask": n_ask,
+                    "liquidity_size": int(total_sz),
+                    "volume_24h": round(vol_24h, 2),
+                    "primary_score": round(score, 2),
                     "status": m.get("status", "active")
                 })
+
             bundle["total"].sort(key=lambda x: x["strike"] if x["strike"] is not None else 0)
+
+            # Automatically select primary (most liquid) total line
+            if bundle["total"]:
+                best_tot_idx = max(range(len(bundle["total"])), key=lambda i: bundle["total"][i].get("primary_score", 0))
+                bundle["primary_total_idx"] = best_tot_idx
+                for idx, item in enumerate(bundle["total"]):
+                    item["is_primary"] = (idx == best_tot_idx)
+            else:
+                bundle["primary_total_idx"] = 0
 
         return bundle
 

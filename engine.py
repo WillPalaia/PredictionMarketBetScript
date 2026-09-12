@@ -26,7 +26,9 @@ class FastBetEngine:
         self.default_buffer = DEFAULT_PRICE_BUFFER_CENTS
         self.default_price_mode = DEFAULT_PRICE_MODE
         self.poll_interval = POLL_INTERVAL_SECONDS
-        self._poll_task: Optional[asyncio.Task] = None
+        self._ml_poll_task: Optional[asyncio.Task] = None
+        self._deriv_poll_task: Optional[asyncio.Task] = None
+        self._last_ml_broadcast: float = 0.0
         self._subscribers: List[Callable[[Dict[str, Any]], Any]] = []
         self.order_history: List[Dict[str, Any]] = []
         self.cached_balance: float = 0.0
@@ -34,11 +36,15 @@ class FastBetEngine:
         self.is_running = False
 
     async def start(self):
-        """Initializes client and background price streamer."""
+        """Initializes client and background high-frequency price streamers."""
         await self.client.initialize()
         self.is_running = True
         await self.refresh_balance()
-        self._poll_task = asyncio.create_task(self._price_stream_loop())
+        # Launch dedicated concurrent split-stream loops:
+        # 1. Ultra-fast Moneyline Hot Loop (~65ms)
+        # 2. Derivatives & Liquidity Scoring Loop (~280ms)
+        self._ml_poll_task = asyncio.create_task(self._moneyline_stream_loop())
+        self._deriv_poll_task = asyncio.create_task(self._derivatives_stream_loop())
 
     async def refresh_balance(self) -> float:
         """Fetches live account balance from Kalshi and caches it."""
@@ -52,8 +58,10 @@ class FastBetEngine:
 
     async def stop(self):
         self.is_running = False
-        if self._poll_task:
-            self._poll_task.cancel()
+        if self._ml_poll_task:
+            self._ml_poll_task.cancel()
+        if self._deriv_poll_task:
+            self._deriv_poll_task.cancel()
         await self.client.close()
 
     def subscribe(self, callback: Callable[[Dict[str, Any]], Any]):
@@ -74,6 +82,22 @@ class FastBetEngine:
             except Exception as e:
                 print(f"[Engine] Broadcast error: {e}")
 
+    async def _broadcast_quote_update(self):
+        """Broadcast live quotes and most-liquid primary indexes to all phone views."""
+        if not self.active_event:
+            return
+        await self._broadcast({
+            "type": "quote_update",
+            "team_a": self.active_event.get("team_a", {}),
+            "team_b": self.active_event.get("team_b", {}),
+            "spread": self.active_event.get("spread", []),
+            "total": self.active_event.get("total", []),
+            "primary_spread_idx": self.active_event.get("primary_spread_idx", 0),
+            "primary_total_idx": self.active_event.get("primary_total_idx", 0),
+            "balance": self.cached_balance,
+            "timestamp": time.time()
+        })
+
     async def select_game_by_event(self, event_data: Dict[str, Any]):
         """Set the active game for 1-tap direct betting, loading all market types."""
         event_ticker = event_data.get("event_ticker")
@@ -84,14 +108,17 @@ class FastBetEngine:
                     self.active_event = bundle["moneyline"]
                     self.active_event["spread"] = bundle.get("spread", [])
                     self.active_event["total"] = bundle.get("total", [])
-
-                    # Find best default line (closest to 50¢)
-                    self.active_event["active_spread_idx"] = self._find_best_line_idx(self.active_event["spread"], "fav_ask")
-                    self.active_event["active_total_idx"] = self._find_best_line_idx(self.active_event["total"], "over_ask")
+                    self.active_event["primary_spread_idx"] = bundle.get("primary_spread_idx", 0)
+                    self.active_event["primary_total_idx"] = bundle.get("primary_total_idx", 0)
+                    self.active_event["active_spread_idx"] = bundle.get("primary_spread_idx", 0)
+                    self.active_event["active_total_idx"] = bundle.get("primary_total_idx", 0)
 
                     await self._broadcast({
                         "type": "game_selected",
-                        "active_event": self.active_event
+                        "active_event": self.active_event,
+                        "primary_spread_idx": self.active_event["primary_spread_idx"],
+                        "primary_total_idx": self.active_event["primary_total_idx"],
+                        "balance": self.cached_balance
                     })
                     return
             except Exception as e:
@@ -103,29 +130,19 @@ class FastBetEngine:
             self.active_event["spread"] = []
         if "total" not in self.active_event:
             self.active_event["total"] = []
+        self.active_event["primary_spread_idx"] = 0
+        self.active_event["primary_total_idx"] = 0
         self.active_event["active_spread_idx"] = 0
         self.active_event["active_total_idx"] = 0
 
-        await self._refresh_quotes()
+        await self._broadcast_quote_update()
         await self._broadcast({
             "type": "game_selected",
-            "active_event": self.active_event
+            "active_event": self.active_event,
+            "primary_spread_idx": 0,
+            "primary_total_idx": 0,
+            "balance": self.cached_balance
         })
-
-    def _find_best_line_idx(self, lines: List[Dict[str, Any]], price_key: str) -> int:
-        """Find the index of the line closest to 50 cents (the primary consensus line)."""
-        if not lines:
-            return 0
-        best_idx = 0
-        best_diff = 1.0
-        for i, line in enumerate(lines):
-            p = line.get(price_key)
-            if p is not None:
-                diff = abs(p - 0.50)
-                if diff < best_diff:
-                    best_diff = diff
-                    best_idx = i
-        return best_idx
 
     async def select_game_by_tickers(
         self,
@@ -155,102 +172,112 @@ class FastBetEngine:
             },
             "spread": [],
             "total": [],
+            "primary_spread_idx": 0,
+            "primary_total_idx": 0,
             "active_spread_idx": 0,
             "active_total_idx": 0
         }
-        await self._refresh_quotes()
+        await self._broadcast_quote_update()
         await self._broadcast({
             "type": "game_selected",
-            "active_event": self.active_event
+            "active_event": self.active_event,
+            "primary_spread_idx": 0,
+            "primary_total_idx": 0,
+            "balance": self.cached_balance
         })
 
-    async def _price_stream_loop(self):
-        """Continuously polls orderbook quotes at low interval to ensure zero-stale data."""
+    async def _moneyline_stream_loop(self):
+        """
+        Ultra-fast loop dedicated to Moneyline quotes running at ~65ms (~15 updates/sec).
+        Directly queries the active game's event with minimal payload for sub-50ms odds latency.
+        """
         while self.is_running:
             try:
-                self._balance_counter += 1
-                if self._balance_counter % 30 == 0:  # Refresh balance every ~4.5 seconds
-                    await self.refresh_balance()
+                if self.active_event and self.active_event.get("event_ticker"):
+                    ev_ticker = self.active_event["event_ticker"]
+                    if ev_ticker != "MANUAL":
+                        game_ev = await self.client.get_event(ev_ticker)
+                        if game_ev and "team_a" in game_ev and "team_b" in game_ev:
+                            new_a_ask = game_ev["team_a"].get("yes_ask")
+                            new_b_ask = game_ev["team_b"].get("yes_ask")
+                            new_a_bid = game_ev["team_a"].get("yes_bid")
+                            new_b_bid = game_ev["team_b"].get("yes_bid")
 
-                if self.active_event:
-                    await self._refresh_quotes()
+                            old_a_ask = self.active_event["team_a"].get("yes_ask")
+                            old_b_ask = self.active_event["team_b"].get("yes_ask")
+                            old_a_bid = self.active_event["team_a"].get("yes_bid")
+                            old_b_bid = self.active_event["team_b"].get("yes_bid")
+
+                            price_changed = (
+                                new_a_ask != old_a_ask or new_b_ask != old_b_ask or
+                                new_a_bid != old_a_bid or new_b_bid != old_b_bid
+                            )
+
+                            self.active_event["team_a"]["yes_bid"] = new_a_bid
+                            self.active_event["team_a"]["yes_ask"] = new_a_ask
+                            self.active_event["team_a"]["last_price"] = game_ev["team_a"].get("last_price")
+
+                            self.active_event["team_b"]["yes_bid"] = new_b_bid
+                            self.active_event["team_b"]["yes_ask"] = new_b_ask
+                            self.active_event["team_b"]["last_price"] = game_ev["team_b"].get("last_price")
+
+                            # Push immediately if prices changed, or periodic heartbeat
+                            now = time.time()
+                            if price_changed or (now - self._last_ml_broadcast >= 0.25):
+                                await self._broadcast_quote_update()
+                                self._last_ml_broadcast = now
+                    else:
+                        # Fallback for manual or single tickers
+                        t_a = self.active_event.get("team_a", {}).get("ticker")
+                        t_b = self.active_event.get("team_b", {}).get("ticker")
+                        if t_a and t_b:
+                            quote_a_task = self.client.get_market_quote(t_a)
+                            quote_b_task = self.client.get_market_quote(t_b)
+                            quote_a, quote_b = await asyncio.gather(quote_a_task, quote_b_task, return_exceptions=True)
+                            if isinstance(quote_a, dict) and "error" not in quote_a:
+                                self.active_event["team_a"]["yes_bid"] = quote_a.get("yes_bid")
+                                self.active_event["team_a"]["yes_ask"] = quote_a.get("yes_ask")
+                                self.active_event["team_a"]["last_price"] = quote_a.get("last_price")
+                            if isinstance(quote_b, dict) and "error" not in quote_b:
+                                self.active_event["team_b"]["yes_bid"] = quote_b.get("yes_bid")
+                                self.active_event["team_b"]["yes_ask"] = quote_b.get("yes_ask")
+                                self.active_event["team_b"]["last_price"] = quote_b.get("last_price")
+                            await self._broadcast_quote_update()
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"[Engine] Price stream error: {e}")
-            await asyncio.sleep(self.poll_interval)
+                await asyncio.sleep(0.1)
+            await asyncio.sleep(0.065)
 
-    async def _refresh_quotes(self):
-        if not self.active_event:
-            return
-
-        event_ticker = self.active_event.get("event_ticker")
-        if event_ticker and event_ticker != "MANUAL":
+    async def _derivatives_stream_loop(self):
+        """
+        Concurrently polls spread and total markets, runs liquidity scoring,
+        identifies the primary featured lines, and syncs account balance.
+        """
+        while self.is_running:
             try:
-                bundle = await self.client.get_game_bundle(event_ticker)
-                if bundle.get("moneyline"):
-                    # Update moneyline
-                    ml = bundle["moneyline"]
-                    self.active_event["team_a"]["yes_bid"] = ml["team_a"]["yes_bid"]
-                    self.active_event["team_a"]["yes_ask"] = ml["team_a"]["yes_ask"]
-                    self.active_event["team_a"]["last_price"] = ml["team_a"]["last_price"]
+                self._balance_counter += 1
+                if self._balance_counter % 12 == 0:  # Refresh balance every ~3.5 seconds
+                    await self.refresh_balance()
 
-                    self.active_event["team_b"]["yes_bid"] = ml["team_b"]["yes_bid"]
-                    self.active_event["team_b"]["yes_ask"] = ml["team_b"]["yes_ask"]
-                    self.active_event["team_b"]["last_price"] = ml["team_b"]["last_price"]
+                if self.active_event and self.active_event.get("event_ticker"):
+                    ev_ticker = self.active_event["event_ticker"]
+                    if ev_ticker != "MANUAL":
+                        bundle = await self.client.get_game_bundle(ev_ticker)
+                        if bundle:
+                            if bundle.get("spread"):
+                                self.active_event["spread"] = bundle["spread"]
+                                self.active_event["primary_spread_idx"] = bundle.get("primary_spread_idx", 0)
+                            if bundle.get("total"):
+                                self.active_event["total"] = bundle["total"]
+                                self.active_event["primary_total_idx"] = bundle.get("primary_total_idx", 0)
 
-                    # Update spread and total lists while preserving user's line selection
-                    if bundle.get("spread"):
-                        self.active_event["spread"] = bundle["spread"]
-                    if bundle.get("total"):
-                        self.active_event["total"] = bundle["total"]
-
-                    await self._broadcast({
-                        "type": "quote_update",
-                        "team_a": self.active_event["team_a"],
-                        "team_b": self.active_event["team_b"],
-                        "spread": self.active_event.get("spread", []),
-                        "total": self.active_event.get("total", []),
-                        "balance": self.cached_balance,
-                        "timestamp": time.time()
-                    })
-                    return
-            except Exception:
-                pass
-
-        # Fallback for manual or single tickers
-        t_a = self.active_event.get("team_a", {}).get("ticker")
-        t_b = self.active_event.get("team_b", {}).get("ticker")
-        if not t_a or not t_b:
-            return
-
-        quote_a_task = self.client.get_market_quote(t_a)
-        quote_b_task = self.client.get_market_quote(t_b)
-        quote_a, quote_b = await asyncio.gather(quote_a_task, quote_b_task, return_exceptions=True)
-
-        updated = False
-        if isinstance(quote_a, dict) and "error" not in quote_a:
-            self.active_event["team_a"]["yes_bid"] = quote_a.get("yes_bid")
-            self.active_event["team_a"]["yes_ask"] = quote_a.get("yes_ask")
-            self.active_event["team_a"]["last_price"] = quote_a.get("last_price")
-            updated = True
-
-        if isinstance(quote_b, dict) and "error" not in quote_b:
-            self.active_event["team_b"]["yes_bid"] = quote_b.get("yes_bid")
-            self.active_event["team_b"]["yes_ask"] = quote_b.get("yes_ask")
-            self.active_event["team_b"]["last_price"] = quote_b.get("last_price")
-            updated = True
-
-        if updated:
-            await self._broadcast({
-                "type": "quote_update",
-                "team_a": self.active_event["team_a"],
-                "team_b": self.active_event["team_b"],
-                "spread": self.active_event.get("spread", []),
-                "total": self.active_event.get("total", []),
-                "balance": self.cached_balance,
-                "timestamp": time.time()
-            })
+                            await self._broadcast_quote_update()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                await asyncio.sleep(0.2)
+            await asyncio.sleep(0.28)
 
     async def execute_direct_bet(
         self,
@@ -516,6 +543,8 @@ class FastBetEngine:
             "default_bet_amount": self.default_bet_amount,
             "default_buffer": self.default_buffer,
             "default_price_mode": self.default_price_mode,
+            "primary_spread_idx": self.active_event.get("primary_spread_idx", 0) if self.active_event else 0,
+            "primary_total_idx": self.active_event.get("primary_total_idx", 0) if self.active_event else 0,
             "balance": self.cached_balance,
             "history": self.order_history[:10]
         }

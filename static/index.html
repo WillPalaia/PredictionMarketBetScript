@@ -208,6 +208,20 @@
       box-shadow: 0 0 8px rgba(56, 139, 253, 0.4);
     }
 
+    .line-pill.auto {
+      background: rgba(210, 153, 34, 0.12);
+      border-color: #9e6a03;
+      color: #e3b341;
+    }
+
+    .line-pill.auto.active {
+      background: #d29922;
+      border-color: #f0883e;
+      color: #0d1117;
+      font-weight: 800;
+      box-shadow: 0 0 8px rgba(210, 153, 34, 0.5);
+    }
+
     /* Arm / Disarm Slider */
     .arm-bar {
       background: #12171f;
@@ -839,6 +853,8 @@
     let activeMarketType = 'moneyline'; // 'moneyline', 'spread', 'total'
     let activeSpreadIdx = 0;
     let activeTotalIdx = 0;
+    let autoFollowSpread = true;        // Automatically track most liquid spread line
+    let autoFollowTotal = true;         // Automatically track most liquid total line
     let activeEvent = null;
     let liveBalance = 0.0;
 
@@ -931,6 +947,12 @@
         [tabMoneyline, tabSpread, tabTotal].forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         activeMarketType = tab.getAttribute('data-market');
+        if (activeMarketType === 'spread' && autoFollowSpread && activeEvent?.primary_spread_idx !== undefined) {
+          activeSpreadIdx = activeEvent.primary_spread_idx;
+        }
+        if (activeMarketType === 'total' && autoFollowTotal && activeEvent?.primary_total_idx !== undefined) {
+          activeTotalIdx = activeEvent.primary_total_idx;
+        }
         vibrate(20);
         renderActiveMarket();
       });
@@ -1017,6 +1039,14 @@
         renderActiveMarket();
       });
     });
+
+    // Number formatter for contract sizes (e.g. 244k, 1.2M)
+    function formatSize(val) {
+      if (!val || val <= 0) return '0';
+      if (val >= 1000000) return (val / 1000000).toFixed(1) + 'M';
+      if (val >= 1000) return Math.round(val / 1000) + 'k';
+      return Math.round(val).toString();
+    }
 
     // Subtitle formatter with ALL-IN contract estimates
     function formatSubtitle(isDynamic, isMax, askPrice, targetPrice, capCents, bufCents, otherBid) {
@@ -1110,14 +1140,41 @@
         lineSelectorLabel.textContent = 'SPREAD:';
         linePillsContainer.innerHTML = '';
 
-        if (activeSpreadIdx >= spreadLines.length) activeSpreadIdx = 0;
+        if (autoFollowSpread && activeEvent.primary_spread_idx !== undefined && activeEvent.primary_spread_idx < spreadLines.length) {
+          activeSpreadIdx = activeEvent.primary_spread_idx;
+        } else if (activeSpreadIdx >= spreadLines.length) {
+          activeSpreadIdx = 0;
+        }
+
+        // Auto Follow (Most Liquid) Pill
+        const autoPill = document.createElement('button');
+        autoPill.className = `line-pill auto ${autoFollowSpread ? 'active' : ''}`;
+        autoPill.textContent = autoFollowSpread ? '⚡ AUTO (Liquid)' : '⚡ AUTO';
+        autoPill.title = 'Automatically track the primary spread line with the deepest orderbook liquidity';
+        autoPill.addEventListener('click', () => {
+          autoFollowSpread = true;
+          if (activeEvent.primary_spread_idx !== undefined && activeEvent.primary_spread_idx < spreadLines.length) {
+            activeSpreadIdx = activeEvent.primary_spread_idx;
+          }
+          vibrate(20);
+          renderActiveMarket();
+        });
+        linePillsContainer.appendChild(autoPill);
 
         spreadLines.forEach((ln, idx) => {
           const pill = document.createElement('button');
-          pill.className = `line-pill ${idx === activeSpreadIdx ? 'active' : ''}`;
+          const isCurrent = (idx === activeSpreadIdx);
+          const isPrimary = (activeEvent.primary_spread_idx === idx);
+          pill.className = `line-pill ${isCurrent ? 'active' : ''}`;
           const ask = ln.fav_ask !== null ? Math.round(ln.fav_ask * 100) : '--';
-          pill.textContent = `${ln.fav_label} (${ask}¢)`;
+          const star = isPrimary ? '★ ' : '';
+          const sizeBadge = ln.liquidity_size > 0 ? ` [${formatSize(ln.liquidity_size)}]` : '';
+          pill.textContent = `${star}${ln.fav_label} (${ask}¢)${sizeBadge}`;
+          if (isPrimary && !isCurrent) {
+            pill.style.borderColor = '#388bfd88';
+          }
           pill.addEventListener('click', () => {
+            autoFollowSpread = false;
             activeSpreadIdx = idx;
             vibrate(20);
             renderActiveMarket();
@@ -1132,8 +1189,10 @@
         sideBAction.textContent = betTitle;
 
         if (activeLine) {
-          sideAName.textContent = activeLine.fav_label;
-          sideBName.textContent = activeLine.dog_label;
+          const isPrimary = (activeEvent.primary_spread_idx === activeSpreadIdx);
+          const primaryMark = isPrimary ? ' ★' : '';
+          sideAName.textContent = `${activeLine.fav_label}${primaryMark}`;
+          sideBName.textContent = `${activeLine.dog_label}${primaryMark}`;
 
           const favAsk = activeLine.fav_ask !== null ? Math.round(activeLine.fav_ask * 100) : null;
           const favBid = activeLine.fav_bid !== null ? Math.round(activeLine.fav_bid * 100) : null;
@@ -1170,14 +1229,41 @@
         lineSelectorLabel.textContent = 'TOTALS:';
         linePillsContainer.innerHTML = '';
 
-        if (activeTotalIdx >= totalLines.length) activeTotalIdx = 0;
+        if (autoFollowTotal && activeEvent.primary_total_idx !== undefined && activeEvent.primary_total_idx < totalLines.length) {
+          activeTotalIdx = activeEvent.primary_total_idx;
+        } else if (activeTotalIdx >= totalLines.length) {
+          activeTotalIdx = 0;
+        }
+
+        // Auto Follow (Most Liquid) Pill
+        const autoPill = document.createElement('button');
+        autoPill.className = `line-pill auto ${autoFollowTotal ? 'active' : ''}`;
+        autoPill.textContent = autoFollowTotal ? '⚡ AUTO (Liquid)' : '⚡ AUTO';
+        autoPill.title = 'Automatically track the primary total line with the deepest orderbook liquidity';
+        autoPill.addEventListener('click', () => {
+          autoFollowTotal = true;
+          if (activeEvent.primary_total_idx !== undefined && activeEvent.primary_total_idx < totalLines.length) {
+            activeTotalIdx = activeEvent.primary_total_idx;
+          }
+          vibrate(20);
+          renderActiveMarket();
+        });
+        linePillsContainer.appendChild(autoPill);
 
         totalLines.forEach((ln, idx) => {
           const pill = document.createElement('button');
-          pill.className = `line-pill ${idx === activeTotalIdx ? 'active' : ''}`;
+          const isCurrent = (idx === activeTotalIdx);
+          const isPrimary = (activeEvent.primary_total_idx === idx);
+          pill.className = `line-pill ${isCurrent ? 'active' : ''}`;
           const ask = ln.over_ask !== null ? Math.round(ln.over_ask * 100) : '--';
-          pill.textContent = `${ln.strike} (${ask}¢)`;
+          const star = isPrimary ? '★ ' : '';
+          const sizeBadge = ln.liquidity_size > 0 ? ` [${formatSize(ln.liquidity_size)}]` : '';
+          pill.textContent = `${star}${ln.strike} (${ask}¢)${sizeBadge}`;
+          if (isPrimary && !isCurrent) {
+            pill.style.borderColor = '#2ea04388';
+          }
           pill.addEventListener('click', () => {
+            autoFollowTotal = false;
             activeTotalIdx = idx;
             vibrate(20);
             renderActiveMarket();
@@ -1192,8 +1278,10 @@
         sideBAction.textContent = betTitle;
 
         if (activeLine) {
-          sideAName.textContent = activeLine.over_label;
-          sideBName.textContent = activeLine.under_label;
+          const isPrimary = (activeEvent.primary_total_idx === activeTotalIdx);
+          const primaryMark = isPrimary ? ' ★' : '';
+          sideAName.textContent = `${activeLine.over_label}${primaryMark}`;
+          sideBName.textContent = `${activeLine.under_label}${primaryMark}`;
 
           const overAsk = activeLine.over_ask !== null ? Math.round(activeLine.over_ask * 100) : null;
           const overBid = activeLine.over_bid !== null ? Math.round(activeLine.over_bid * 100) : null;
@@ -1430,6 +1518,15 @@
               if (data.team_b) activeEvent.team_b = data.team_b;
               if (data.spread) activeEvent.spread = data.spread;
               if (data.total) activeEvent.total = data.total;
+              if (data.primary_spread_idx !== undefined) activeEvent.primary_spread_idx = data.primary_spread_idx;
+              if (data.primary_total_idx !== undefined) activeEvent.primary_total_idx = data.primary_total_idx;
+
+              if (autoFollowSpread && activeEvent.primary_spread_idx !== undefined) {
+                activeSpreadIdx = activeEvent.primary_spread_idx;
+              }
+              if (autoFollowTotal && activeEvent.primary_total_idx !== undefined) {
+                activeTotalIdx = activeEvent.primary_total_idx;
+              }
               renderActiveMarket();
             }
           } else if (data.type === 'order_executed') {
@@ -1484,8 +1581,21 @@
       if (state.active_event) {
         activeEvent = state.active_event;
         activeGameTitle.textContent = activeEvent.title || 'Live Game';
-        if (activeEvent.active_spread_idx !== undefined) activeSpreadIdx = activeEvent.active_spread_idx;
-        if (activeEvent.active_total_idx !== undefined) activeTotalIdx = activeEvent.active_total_idx;
+        if (state.primary_spread_idx !== undefined) activeEvent.primary_spread_idx = state.primary_spread_idx;
+        if (state.primary_total_idx !== undefined) activeEvent.primary_total_idx = state.primary_total_idx;
+
+        if (autoFollowSpread && activeEvent.primary_spread_idx !== undefined) {
+          activeSpreadIdx = activeEvent.primary_spread_idx;
+        } else if (activeEvent.active_spread_idx !== undefined) {
+          activeSpreadIdx = activeEvent.active_spread_idx;
+        }
+
+        if (autoFollowTotal && activeEvent.primary_total_idx !== undefined) {
+          activeTotalIdx = activeEvent.primary_total_idx;
+        } else if (activeEvent.active_total_idx !== undefined) {
+          activeTotalIdx = activeEvent.active_total_idx;
+        }
+
         renderActiveMarket();
       }
     }
