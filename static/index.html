@@ -685,19 +685,6 @@
 
   <div id="feedbackOverlay"></div>
 
-  <!-- UI Design Previews Bar -->
-  <div style="background: #161b22; border-bottom: 1px solid #30363d; padding: 5px 12px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 700; z-index: 100;">
-    <div style="display: flex; align-items: center; gap: 6px;">
-      <span style="background: rgba(56, 139, 253, 0.15); color: #58a6ff; border: 1px solid rgba(56, 139, 253, 0.4); padding: 1px 5px; border-radius: 4px; font-size: 10px;">PREVIEWS</span>
-      <span style="color: #8b949e;">UI Designs:</span>
-    </div>
-    <div style="display: flex; gap: 6px;">
-      <a href="/" style="color: #fff; background: #21262d; border: 1px solid #30363d; text-decoration: none; padding: 2px 6px; border-radius: 4px;">Classic</a>
-      <a href="/preview/react" style="color: #8b949e; text-decoration: none; padding: 2px 6px; border-radius: 4px;">React</a>
-      <a href="/preview/terminal" style="color: #8b949e; text-decoration: none; padding: 2px 6px; border-radius: 4px;">Terminal</a>
-    </div>
-  </div>
-
   <!-- Status Header -->
   <header>
     <div style="display: flex; align-items: center; gap: 8px;">
@@ -758,16 +745,18 @@
       <button class="pill" data-bet="5">$5</button>
       <button class="pill" data-bet="10">$10</button>
       <button class="pill" data-bet="25">$25</button>
+      <button class="pill" data-bet="50">$50</button>
+      <button class="pill" data-bet="100">$100</button>
       <button class="pill pill-max" data-bet="max" id="btnBetMax">⚡ MAX</button>
     </div>
 
     <!-- Dynamic Cap Group (Visible in Dynamic Market mode) -->
     <div class="config-group" id="groupDynamicCap">
       <span class="config-title">DYNAMIC CAP:</span>
-      <button class="pill pill-cap active" data-cap="0.04">+4¢ (Kalshi)</button>
-      <button class="pill pill-cap" data-cap="0.02">+2¢</button>
-      <button class="pill pill-cap" data-cap="0.06">+6¢</button>
-      <button class="pill pill-cap" data-cap="0.00">+0¢ (Exact)</button>
+      <button class="pill pill-cap active" data-cap="0.04">+4¢ (Kalshi High)</button>
+      <button class="pill pill-cap" data-cap="0.02">+2¢ (Kalshi Low)</button>
+      <button class="pill pill-cap" data-cap="0.06">+6¢ (Aggressive)</button>
+      <button class="pill pill-cap" data-cap="0.00">+0¢ (Exact Ask)</button>
     </div>
 
     <!-- Custom Limit Target (Visible in Limit mode) -->
