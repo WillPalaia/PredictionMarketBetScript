@@ -1,8 +1,15 @@
-﻿# Project Context: FastBet 1-Tap Prediction Market Direct API Client
+# Project Context: FastBet 1-Tap Prediction Market Direct API Client
 
 ## 1. Project Overview & Goal
 * **Objective:** Direct API execution for prediction markets (Kalshi) to execute trades orders of magnitude faster than standard mobile apps.
-* **Mechanism:** Two tactile buttons on the mobile interface (one for Team A, one for Team B). Tapping either button immediately fires a marketable limit order (current ask + configurable slippage buffer, e.g. +3¢) to buy contracts on **Kalshi**.
+* **Mechanism:** Two tactile buttons on the mobile interface for instant 1-tap betting across three market categories:
+  * **Moneyline:** Team A Win vs Team B Win
+  * **Point Spread:** Cover lines with line selector carousel (e.g. -1.5, -3.5, +1.5, +3.5)
+  * **Over / Under (Totals):** Total score lines with 1-tap OVER or UNDER execution
+* **Price Execution Modes:**
+  * **AT ASK (Taker):** Immediate marketable fill at best ask.
+  * **AT BID (Maker):** Limit order at best bid to post and save the spread.
+  * **+0¢ Buffer (Default):** Exact price guarantee (never pays a penny above chosen price).
 * **Speed Advantage:** Bypasses the 3–8 second navigation delay of standard exchange apps. From finger tap to match engine order execution is **under 100 milliseconds** via persistent WebSockets and pre-warmed keep-alive HTTP sessions.
 * **Current Exchange:** Kalshi API v2 (structured with an exchange abstraction layer ready for Polymarket, Betfair, etc.).
 * **GitHub Repository:** https://github.com/WillPalaia/PredictionMarketBetScript.git

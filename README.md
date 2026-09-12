@@ -1,4 +1,4 @@
-﻿# FastBet: 1-Tap Direct API Client for Prediction Markets
+# FastBet: 1-Tap Direct API Client for Prediction Markets
 
 An ultra-low-latency, mobile-first trading client designed for **instant 1-tap order execution directly through prediction market exchange APIs (Kalshi)**. 
 
@@ -38,15 +38,22 @@ Standard exchange mobile apps require 3 to 8 seconds of manual navigation (findi
 
 ## Key Features
 
-* **Instant 1-Tap Execution:** Two giant, high-contrast buttons for each side of the active market. One tap calculates the contracts and submits a marketable limit order immediately.
-* **Safety Arm / Disarm Toggle:** Prevents accidental taps. When Disarmed, buttons are grayed out. When Armed, 1-tap mode is live.
-* **Haptic & Visual Feedback:** Vibrates your phone immediately upon tap, double-vibrates on fill confirmation, and flashes neon green (success) or red (error).
+* **Multi-Market Betting in 1 Tap:**
+  * **Moneyline:** Bet Team A or Team B straight up to win.
+  * **Point Spread:** Instant cover lines (e.g. -1.5, -3.5, +1.5, +3.5) with automatic consensus line pre-selection.
+  * **Over / Under (Totals):** Instant game total lines (e.g. 7.5, 41.5) with single-tap OVER or UNDER execution.
+* **Granular Price Target Control (Taker vs Maker):**
+  * **AT ASK (Instant Fill):** Submits at the current best ask for immediate market fill.
+  * **AT BID (Maker Order):** Submits at the current best bid, posting a resting limit order and saving the spread.
+* **Exact Price & Slippage Protection:**
+  * **+0¢ (Exact Price):** Default setting ensuring your limit price will never pay a single cent above what you selected.
+  * **+1¢, +2¢, +3¢, +5¢:** Optional slippage buffer for fast-moving volatile momentum.
+* **Safety Arm / Disarm Toggle:** Prevents accidental taps. When Disarmed, buttons are grayed out. When Armed, 1-tap mode is active.
+* **Haptic & Visual Feedback:** Immediate tactile phone vibration on tap, double vibration on fill confirmation, and screen flash green/red.
 * **Live Market Telemetry:** Live 150ms top-of-book orderbook streaming and round-trip touch-to-fill latency tracking (⚡ XX ms).
-* **Configurable Bet Size & Slippage Buffer:** 
-  * Bet Sizes: $1, $2, $5, $10, $25.
-  * Slippage Buffers: +1¢, +3¢, +5¢, +10¢ above current ask.
+* **Configurable Bet Sizes:** $1, $2, $5, $10, $25.
 * **Game & Market Selector:** Search active NFL, MLB, NBA, NCAAF, and soccer markets with one click.
-* **Simulation Mode:** Safely test touch latency, UI, and game switching with 100% real live market odds without risking money.
+* **Simulation Mode:** Test touch latency, UI, and market switching with 100% real live market odds without risking capital.
 
 ---
 
