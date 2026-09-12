@@ -8,6 +8,7 @@ from config import (
     DEFAULT_PRICE_MODE,
     POLL_INTERVAL_SECONDS
 )
+from analytics import AnalyticsManager
 
 
 class FastBetEngine:
@@ -425,8 +426,16 @@ class FastBetEngine:
         order_result["target_dollars"] = target_dollars
         order_result["count"] = order_result.get("count", count)
 
+        order_result["game_title"] = self.active_event.get("title", "Live Game") if self.active_event else "Live Game"
+        order_result["event_ticker"] = self.active_event.get("event_ticker", "") if self.active_event else ""
+        order_result["outcome_side"] = outcome_side or ("yes" if side_str == "A" else "no")
+
         if order_result.get("success"):
             order_result["total_cost"] = round(display_price * order_result["count"], 2)
+            try:
+                AnalyticsManager.record_trade(order_result)
+            except Exception as e:
+                print(f"[Engine] Analytics record error: {e}")
         else:
             order_result["total_cost"] = 0.00
 

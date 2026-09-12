@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>FastBet - Performance & Session Analytics</title>
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: #090d13;
+      color: #f0f6fc;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 30px;
+    }
+
+    /* Top Navigation Header */
+    header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #f0f6fc;
+    }
+
+    .brand-badge {
+      background: rgba(56, 139, 253, 0.15);
+      border: 1px solid rgba(56, 139, 253, 0.4);
+      color: #58a6ff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-nav {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+    }
+
+    .btn-nav:hover {
+      background: #30363d;
+      color: #fff;
+    }
+
+    .btn-nav-primary {
+      background: #238636;
+      border-color: #2ea043;
+      color: #fff;
+    }
+
+    .btn-nav-primary:hover {
+      background: #2ea043;
+    }
+
+    /* Container */
+    .container {
+      max-width: 1050px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Session Banner Bar */
+    .session-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .session-info {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .session-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .session-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #f0f6fc;
+    }
+
+    .session-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .session-select {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #f0f6fc;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+      max-width: 260px;
+    }
+
+    .btn-action {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-action:hover {
+      background: #30363d;
+      color: #fff;
+    }
+
+    /* KPI Summary Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+    }
+
+    .kpi-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #8b949e;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .kpi-value {
+      font-size: 26px;
+      font-weight: 900;
+      font-family: monospace;
+      letter-spacing: -0.5px;
+      line-height: 1.1;
+    }
+
+    .kpi-sub {
+      font-size: 11px;
+      color: #8b949e;
+      font-weight: 600;
+    }
+
+    .positive {
+      color: #3fb950 !important;
+    }
+
+    .negative {
+      color: #f85149 !important;
+    }
+
+    .neutral {
+      color: #58a6ff !important;
+    }
+
+    /* Charts Section */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 14px;
+    }
+
+    @media (max-width: 768px) {
+      .charts-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .chart-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: #f0f6fc;
+    }
+
+    .chart-canvas-container {
+      position: relative;
+      height: 220px;
+      width: 100%;
+    }
+
+    /* Market Breakdown Strip */
+    .market-stats-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .market-stat-item {
+      background: #0d1117;
+      border: 1px solid #21262d;
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .market-stat-title {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .market-stat-sub {
+      font-size: 11px;
+      color: #8b949e;
+    }
+
+    .market-stat-pnl {
+      font-size: 15px;
+      font-weight: 800;
+      font-family: monospace;
+      text-align: right;
+    }
+
+    /* Trade Log Section */
+    .table-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .table-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .table-title {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .table-filters {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filter-select {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #f0f6fc;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      outline: none;
+    }
+
+    .table-responsive {
+      overflow-x: auto;
+      max-height: 480px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 12px;
+    }
+
+    th {
+      background: #0d1117;
+      color: #8b949e;
+      padding: 10px 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-size: 10px;
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #21262d;
+      white-space: nowrap;
+    }
+
+    tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .badge-status {
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .badge-won {
+      background: rgba(46, 160, 67, 0.2);
+      color: #3fb950;
+      border: 1px solid rgba(63, 185, 80, 0.3);
+    }
+
+    .badge-lost {
+      background: rgba(218, 54, 51, 0.2);
+      color: #f85149;
+      border: 1px solid rgba(248, 81, 73, 0.3);
+    }
+
+    .badge-open {
+      background: rgba(210, 153, 34, 0.2);
+      color: #d29922;
+      border: 1px solid rgba(210, 153, 34, 0.3);
+    }
+
+    .badge-type {
+      background: #21262d;
+      color: #8b949e;
+      border-radius: 4px;
+      padding: 2px 5px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    /* Modal for New Session */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 440px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .modal-input {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #f0f6fc;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .modal-btn-row {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand">
+      <span class="brand-title">FastBet Analytics</span>
+      <span class="brand-badge">PRO</span>
+    </div>
+    <div class="nav-actions">
+      <button class="btn-nav" id="btnSyncKalshi" title="Reconcile with Kalshi settlements & fills">
+        <span id="syncSpinner">🔄</span> Sync Kalshi
+      </button>
+      <a href="/" class="btn-nav btn-nav-primary">⚡ Live Betting</a>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- Active Session Bar -->
+    <div class="session-card">
+      <div class="session-info">
+        <span class="session-label">CURRENT ACTIVE SESSION</span>
+        <span class="session-title" id="activeSessionTitle">Loading session...</span>
+      </div>
+      <div class="session-controls">
+        <select class="session-select" id="sessionFilter">
+          <option value="all">All Sessions (All-Time)</option>
+        </select>
+        <button class="btn-action" id="btnNewSession">+ New Session</button>
+        <button class="btn-action" id="btnEndSession">⏹ End Session</button>
+      </div>
+    </div>
+
+    <!-- KPI Summary Grid -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <span class="kpi-title">NET PROFIT / LOSS</span>
+        <div class="kpi-value positive" id="kpiNetPnl">$0.00</div>
+        <span class="kpi-sub" id="kpiRoi">ROI: 0.0%</span>
+      </div>
+
+      <div class="kpi-card">
+        <span class="kpi-title">WIN RATE</span>
+        <div class="kpi-value neutral" id="kpiWinRate">0.0%</div>
+        <span class="kpi-sub" id="kpiRecord">0W - 0L (0 Settled)</span>
+      </div>
+
+      <div class="kpi-card">
+        <span class="kpi-title">TOTAL WAGERED</span>
+        <div class="kpi-value" id="kpiWagered">$0.00</div>
+        <span class="kpi-sub" id="kpiTotalBets">0 Total Bets</span>
+      </div>
+
+      <div class="kpi-card">
+        <span class="kpi-title">AVG ENTRY PRICE</span>
+        <div class="kpi-value" id="kpiAvgPrice">--¢</div>
+        <span class="kpi-sub" id="kpiOpenTrades">0 Open Bets</span>
+      </div>
+
+      <div class="kpi-card">
+        <span class="kpi-title">AVG SPEED / LATENCY</span>
+        <div class="kpi-value neutral" id="kpiAvgLatency">-- ms</div>
+        <span class="kpi-sub">API Roundtrip</span>
+      </div>
+
+      <div class="kpi-card">
+        <span class="kpi-title">KALSHI CASH BALANCE</span>
+        <div class="kpi-value positive" id="kpiBalance">$---.--</div>
+        <span class="kpi-sub" id="kpiBalanceStatus">● Live Synced</span>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="charts-row">
+      <!-- Cumulative P&L Curve -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <span>CUMULATIVE P&L PERFORMANCE</span>
+          <span style="font-size: 11px; color: #8b949e;">Real-time</span>
+        </div>
+        <div class="chart-canvas-container">
+          <canvas id="pnlChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Market Breakdown -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <span>MARKET BREAKDOWN</span>
+          <span style="font-size: 11px; color: #8b949e;">P&L by Type</span>
+        </div>
+        <div class="market-stats-grid" id="marketStatsContainer">
+          <div class="market-stat-item">
+            <div>
+              <div class="market-stat-title">Moneyline</div>
+              <div class="market-stat-sub" id="mlSub">0 Bets</div>
+            </div>
+            <div class="market-stat-pnl" id="mlPnl">$0.00</div>
+          </div>
+          <div class="market-stat-item">
+            <div>
+              <div class="market-stat-title">Point Spread</div>
+              <div class="market-stat-sub" id="spreadSub">0 Bets</div>
+            </div>
+            <div class="market-stat-pnl" id="spreadPnl">$0.00</div>
+          </div>
+          <div class="market-stat-item">
+            <div>
+              <div class="market-stat-title">Totals (Over/Under)</div>
+              <div class="market-stat-sub" id="totalSub">0 Bets</div>
+            </div>
+            <div class="market-stat-pnl" id="totalPnl">$0.00</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trade History Table -->
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-title">TRADE EXECUTION & SETTLEMENT LOG</span>
+        <div class="table-filters">
+          <select class="filter-select" id="filterMarket">
+            <option value="all">All Markets</option>
+            <option value="moneyline">Moneyline</option>
+            <option value="spread">Spread</option>
+            <option value="total">Over/Under</option>
+          </select>
+          <select class="filter-select" id="filterStatus">
+            <option value="all">All Statuses</option>
+            <option value="settled_won">Won</option>
+            <option value="settled_lost">Lost</option>
+            <option value="open">Open</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Game / Event</th>
+              <th>Pick & Market</th>
+              <th>Type</th>
+              <th>Price & Qty</th>
+              <th>Total Cost</th>
+              <th>Result / P&L</th>
+              <th>Latency</th>
+            </tr>
+          </thead>
+          <tbody id="tradeTableBody">
+            <tr>
+              <td colspan="8" style="text-align: center; color: #8b949e; padding: 24px;">Loading trade history...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Modal for Creating New Session -->
+  <div class="modal-overlay" id="sessionModal">
+    <div class="modal-box">
+      <span class="modal-title">Start New Betting Session</span>
+      <p style="font-size: 12px; color: #8b949e;">
+        Group your trades into a dedicated session (e.g. game title, quarter, or date) to track performance independently.
+      </p>
+      <input type="text" class="modal-input" id="sessionNameInput" placeholder="Session Name (e.g. Chiefs vs Ravens 2nd Half)" />
+      <div class="modal-btn-row">
+        <button class="btn-action" id="btnCloseSessionModal">Cancel</button>
+        <button class="btn-nav btn-nav-primary" id="btnConfirmStartSession">Start Session</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let pnlChart = null;
+    let selectedSessionId = 'all';
+
+    // DOM Elements
+    const activeSessionTitle = document.getElementById('activeSessionTitle');
+    const sessionFilter = document.getElementById('sessionFilter');
+    const btnNewSession = document.getElementById('btnNewSession');
+    const btnEndSession = document.getElementById('btnEndSession');
+    const btnSyncKalshi = document.getElementById('btnSyncKalshi');
+    const syncSpinner = document.getElementById('syncSpinner');
+
+    const kpiNetPnl = document.getElementById('kpiNetPnl');
+    const kpiRoi = document.getElementById('kpiRoi');
+    const kpiWinRate = document.getElementById('kpiWinRate');
+    const kpiRecord = document.getElementById('kpiRecord');
+    const kpiWagered = document.getElementById('kpiWagered');
+    const kpiTotalBets = document.getElementById('kpiTotalBets');
+    const kpiAvgPrice = document.getElementById('kpiAvgPrice');
+    const kpiOpenTrades = document.getElementById('kpiOpenTrades');
+    const kpiAvgLatency = document.getElementById('kpiAvgLatency');
+    const kpiBalance = document.getElementById('kpiBalance');
+
+    const mlPnl = document.getElementById('mlPnl');
+    const mlSub = document.getElementById('mlSub');
+    const spreadPnl = document.getElementById('spreadPnl');
+    const spreadSub = document.getElementById('spreadSub');
+    const totalPnl = document.getElementById('totalPnl');
+    const totalSub = document.getElementById('totalSub');
+
+    const tradeTableBody = document.getElementById('tradeTableBody');
+    const filterMarket = document.getElementById('filterMarket');
+    const filterStatus = document.getElementById('filterStatus');
+
+    const sessionModal = document.getElementById('sessionModal');
+    const sessionNameInput = document.getElementById('sessionNameInput');
+    const btnCloseSessionModal = document.getElementById('btnCloseSessionModal');
+    const btnConfirmStartSession = document.getElementById('btnConfirmStartSession');
+
+    // Initialize Chart.js
+    function initChart() {
+      const ctx = document.getElementById('pnlChart').getContext('2d');
+      pnlChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Cumulative P&L ($)',
+            data: [],
+            borderColor: '#3fb950',
+            backgroundColor: 'rgba(63, 185, 80, 0.1)',
+            fill: true,
+            tension: 0.3,
+            borderWidth: 2,
+            pointRadius: 3,
+            pointBackgroundColor: '#3fb950'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => ` Cumulative P&L: $${ctx.parsed.y.toFixed(2)}`
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#8b949e', font: { size: 10 } }
+            },
+            y: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: {
+                color: '#8b949e',
+                font: { size: 10 },
+                callback: (val) => `$${val}`
+              }
+            }
+          }
+        }
+      });
+    }
+
+    async function loadSessions() {
+      try {
+        const res = await fetch('/api/stats/sessions');
+        const data = await res.json();
+        
+        if (data.active_session) {
+          activeSessionTitle.textContent = `${data.active_session.name} ● Live`;
+          activeSessionTitle.style.color = '#3fb950';
+        } else {
+          activeSessionTitle.textContent = 'No active session (Click + New Session to start)';
+          activeSessionTitle.style.color = '#8b949e';
+        }
+
+        const currentVal = sessionFilter.value;
+        sessionFilter.innerHTML = '<option value="all">All Sessions (All-Time)</option>';
+        (data.sessions || []).forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          const pnlText = s.net_pnl >= 0 ? `+$${s.net_pnl.toFixed(2)}` : `-$${Math.abs(s.net_pnl).toFixed(2)}`;
+          opt.textContent = `${s.name} (${s.total_bets} bets | ${pnlText})`;
+          sessionFilter.appendChild(opt);
+        });
+
+        if (currentVal) sessionFilter.value = currentVal;
+      } catch (err) {
+        console.error("loadSessions error:", err);
+      }
+    }
+
+    async function loadDashboard() {
+      try {
+        const sessParam = selectedSessionId !== 'all' ? `?session_id=${encodeURIComponent(selectedSessionId)}` : '';
+        const res = await fetch(`/api/stats/summary${sessParam}`);
+        const summary = await res.json();
+
+        // 1. KPI Cards
+        const netPnl = summary.net_pnl || 0.0;
+        kpiNetPnl.textContent = (netPnl >= 0 ? '+$' : '-$') + Math.abs(netPnl).toFixed(2);
+        kpiNetPnl.className = `kpi-value ${netPnl >= 0 ? 'positive' : 'negative'}`;
+        kpiRoi.textContent = `ROI: ${summary.roi > 0 ? '+' : ''}${summary.roi.toFixed(1)}%`;
+
+        kpiWinRate.textContent = `${summary.win_rate.toFixed(1)}%`;
+        kpiRecord.textContent = `${summary.win_count}W - ${summary.loss_count}L (${summary.settled_count} Settled)`;
+
+        kpiWagered.textContent = `$${summary.total_wagered.toFixed(2)}`;
+        kpiTotalBets.textContent = `${summary.total_bets} Total Bets`;
+
+        kpiAvgPrice.textContent = `${summary.avg_price_cents.toFixed(1)}¢`;
+        kpiOpenTrades.textContent = `${summary.open_count} Open Bets`;
+
+        kpiAvgLatency.textContent = summary.avg_latency_ms > 0 ? `${summary.avg_latency_ms.toFixed(1)} ms` : '-- ms';
+
+        // 2. Market Breakdown
+        const ms = summary.market_stats || {};
+        const ml = ms.moneyline || { bets: 0, pnl: 0.0 };
+        mlPnl.textContent = (ml.pnl >= 0 ? '+$' : '-$') + Math.abs(ml.pnl).toFixed(2);
+        mlPnl.className = `market-stat-pnl ${ml.pnl >= 0 ? 'positive' : 'negative'}`;
+        mlSub.textContent = `${ml.bets} Bets | ${ml.wins || 0} Wins`;
+
+        const sp = ms.spread || { bets: 0, pnl: 0.0 };
+        spreadPnl.textContent = (sp.pnl >= 0 ? '+$' : '-$') + Math.abs(sp.pnl).toFixed(2);
+        spreadPnl.className = `market-stat-pnl ${sp.pnl >= 0 ? 'positive' : 'negative'}`;
+        spreadSub.textContent = `${sp.bets} Bets | ${sp.wins || 0} Wins`;
+
+        const tot = ms.total || { bets: 0, pnl: 0.0 };
+        totalPnl.textContent = (tot.pnl >= 0 ? '+$' : '-$') + Math.abs(tot.pnl).toFixed(2);
+        totalPnl.className = `market-stat-pnl ${tot.pnl >= 0 ? 'positive' : 'negative'}`;
+        totalSub.textContent = `${tot.bets} Bets | ${tot.wins || 0} Wins`;
+
+        // 3. Update Cumulative Chart
+        if (pnlChart) {
+          const timeline = summary.timeline || [];
+          pnlChart.data.labels = timeline.map(t => t.time);
+          pnlChart.data.datasets[0].data = timeline.map(t => t.cumulative_pnl);
+          
+          if (timeline.length > 0) {
+            const finalPnl = timeline[timeline.length - 1].cumulative_pnl;
+            const lineColor = finalPnl >= 0 ? '#3fb950' : '#f85149';
+            pnlChart.data.datasets[0].borderColor = lineColor;
+            pnlChart.data.datasets[0].pointBackgroundColor = lineColor;
+            pnlChart.data.datasets[0].backgroundColor = finalPnl >= 0 ? 'rgba(63, 185, 80, 0.1)' : 'rgba(248, 81, 73, 0.1)';
+          }
+          pnlChart.update();
+        }
+
+        // 4. Fetch Live Kalshi Balance
+        fetch('/api/balance').then(r => r.json()).then(b => {
+          if (b.balance_dollars !== undefined) {
+            kpiBalance.textContent = `$${b.balance_dollars.toFixed(2)}`;
+          }
+        }).catch(() => {});
+
+      } catch (err) {
+        console.error("loadDashboard error:", err);
+      }
+    }
+
+    async function loadTrades() {
+      try {
+        const sess = selectedSessionId !== 'all' ? `session_id=${encodeURIComponent(selectedSessionId)}&` : '';
+        const mkt = filterMarket.value !== 'all' ? `market_type=${encodeURIComponent(filterMarket.value)}&` : '';
+        const st = filterStatus.value !== 'all' ? `status=${encodeURIComponent(filterStatus.value)}&` : '';
+        const url = `/api/stats/trades?${sess}${mkt}${st}limit=150`;
+
+        const res = await fetch(url);
+        const trades = await res.json();
+
+        if (!trades || trades.length === 0) {
+          tradeTableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #8b949e; padding: 24px;">No trades recorded for this filter.</td></tr>`;
+          return;
+        }
+
+        tradeTableBody.innerHTML = '';
+        trades.forEach(t => {
+          const tr = document.createElement('tr');
+          const timeFormatted = t.created_at ? t.created_at.split(' ')[1] : '--:--';
+          const priceCents = Math.round(t.price * 100);
+
+          let statusBadge = '';
+          let pnlFormatted = '';
+
+          if (t.status === 'settled_won') {
+            statusBadge = '<span class="badge-status badge-won">● WON</span>';
+            pnlFormatted = `<span class="positive" style="font-weight: 800; font-family: monospace;">+$${t.pnl.toFixed(2)}</span>`;
+          } else if (t.status === 'settled_lost') {
+            statusBadge = '<span class="badge-status badge-lost">● LOST</span>';
+            pnlFormatted = `<span class="negative" style="font-weight: 800; font-family: monospace;">-$${Math.abs(t.pnl).toFixed(2)}</span>`;
+          } else {
+            statusBadge = '<span class="badge-status badge-open">● OPEN</span>';
+            pnlFormatted = `<span style="color: #8b949e; font-family: monospace;">$0.00</span>`;
+          }
+
+          const orderTypeIcon = t.order_type === 'dynamic' ? '⚡ Dynamic' : '🎯 Limit';
+          const latencyStr = t.latency_ms > 0 ? `${Math.round(t.latency_ms)}ms` : '--';
+
+          tr.innerHTML = `
+            <td style="color: #8b949e; font-family: monospace;">${timeFormatted}</td>
+            <td style="font-weight: 600; max-width: 140px; overflow: hidden; text-overflow: ellipsis;">${t.game_title || 'Game'}</td>
+            <td>
+              <div style="font-weight: 700; color: #f0f6fc;">${t.label}</div>
+              <div style="font-size: 10px; color: #8b949e; text-transform: uppercase;">${t.market_type} (${t.side.toUpperCase()})</div>
+            </td>
+            <td><span class="badge-type">${orderTypeIcon}</span></td>
+            <td style="font-family: monospace; font-weight: 700;">${priceCents}¢ <span style="color: #8b949e;">× ${t.count}</span></td>
+            <td style="font-family: monospace;">$${t.total_cost.toFixed(2)}</td>
+            <td>
+              <div>${statusBadge}</div>
+              <div style="margin-top: 2px;">${pnlFormatted}</div>
+            </td>
+            <td style="font-family: monospace; color: #7ee787;">⚡ ${latencyStr}</td>
+          `;
+          tradeTableBody.appendChild(tr);
+        });
+
+      } catch (err) {
+        tradeTableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #f85149; padding: 24px;">Failed to load trades: ${err.message}</td></tr>`;
+      }
+    }
+
+    // Session Switcher
+    sessionFilter.addEventListener('change', (e) => {
+      selectedSessionId = e.target.value;
+      loadDashboard();
+      loadTrades();
+    });
+
+    filterMarket.addEventListener('change', loadTrades);
+    filterStatus.addEventListener('change', loadTrades);
+
+    // Sync Kalshi
+    btnSyncKalshi.addEventListener('click', async () => {
+      syncSpinner.style.display = 'inline-block';
+      syncSpinner.style.animation = 'spin 1s infinite linear';
+      try {
+        const res = await fetch('/api/stats/sync', { method: 'POST' });
+        const data = await res.json();
+        await loadSessions();
+        await loadDashboard();
+        await loadTrades();
+      } catch (e) {
+        alert(`Sync failed: ${e.message}`);
+      } finally {
+        syncSpinner.style.animation = '';
+      }
+    });
+
+    // Session Modals
+    btnNewSession.addEventListener('click', () => {
+      sessionModal.classList.add('open');
+      sessionNameInput.value = '';
+      sessionNameInput.focus();
+    });
+
+    btnCloseSessionModal.addEventListener('click', () => {
+      sessionModal.classList.remove('open');
+    });
+
+    btnConfirmStartSession.addEventListener('click', async () => {
+      const name = sessionNameInput.value.trim();
+      try {
+        const res = await fetch('/api/stats/session/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name || null })
+        });
+        const data = await res.json();
+        sessionModal.classList.remove('open');
+        await loadSessions();
+        selectedSessionId = data.session.id;
+        sessionFilter.value = selectedSessionId;
+        await loadDashboard();
+        await loadTrades();
+      } catch (e) {
+        alert(`Failed to start session: ${e.message}`);
+      }
+    });
+
+    btnEndSession.addEventListener('click', async () => {
+      if (confirm("End the current active session? New bets will start a fresh session.")) {
+        try {
+          await fetch('/api/stats/session/end', { method: 'POST' });
+          await loadSessions();
+          await loadDashboard();
+          await loadTrades();
+        } catch (e) {
+          alert(`Failed to end session: ${e.message}`);
+        }
+      }
+    });
+
+    // Startup
+    initChart();
+    loadSessions();
+    loadDashboard();
+    loadTrades();
+
+    // Auto-refresh stats every 4 seconds
+    setInterval(() => {
+      loadDashboard();
+      loadTrades();
+    }, 4000);
+  </script>
+</body>
+</html>

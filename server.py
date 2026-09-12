@@ -12,6 +12,7 @@ import uvicorn
 
 from config import SERVER_HOST, SERVER_PORT, BASE_DIR
 from engine import FastBetEngine
+from analytics import AnalyticsManager
 
 # Global Engine instance
 engine = FastBetEngine()
@@ -53,6 +54,14 @@ async def serve_index():
     if index_file.exists():
         return FileResponse(str(index_file))
     return HTMLResponse("<h1>FastBet UI not found in static/index.html</h1>")
+
+
+@app.get("/stats", response_class=HTMLResponse)
+async def serve_stats():
+    stats_file = static_path / "stats.html"
+    if stats_file.exists():
+        return FileResponse(str(stats_file))
+    return HTMLResponse("<h1>FastBet Stats UI not found in static/stats.html</h1>")
 
 
 # Request Models
@@ -121,6 +130,63 @@ async def place_bet(req: BetRequest):
         price_mode=req.price_mode or "ask",
         custom_label=req.label
     )
+    return result
+
+
+# Analytics & Performance Tracking Endpoints
+class SessionStartRequest(BaseModel):
+    name: Optional[str] = None
+    game_title: Optional[str] = None
+    event_ticker: Optional[str] = None
+
+
+@app.get("/api/stats/summary")
+async def get_stats_summary(session_id: Optional[str] = None):
+    return AnalyticsManager.get_performance_summary(session_id=session_id)
+
+
+@app.get("/api/stats/trades")
+async def get_stats_trades(
+    session_id: Optional[str] = None,
+    limit: int = 150,
+    market_type: Optional[str] = None,
+    status: Optional[str] = None
+):
+    return AnalyticsManager.get_trades(
+        session_id=session_id,
+        limit=limit,
+        market_type=market_type,
+        status=status
+    )
+
+
+@app.get("/api/stats/sessions")
+async def get_stats_sessions():
+    return {
+        "sessions": AnalyticsManager.list_sessions(),
+        "active_session": AnalyticsManager.get_active_session()
+    }
+
+
+@app.post("/api/stats/session/start")
+async def start_session(req: SessionStartRequest):
+    sess = AnalyticsManager.start_new_session(
+        name=req.name,
+        game_title=req.game_title,
+        event_ticker=req.event_ticker
+    )
+    return {"success": True, "session": sess}
+
+
+@app.post("/api/stats/session/end")
+async def end_session():
+    ended = AnalyticsManager.end_active_session()
+    return {"success": True, "ended_session": ended}
+
+
+@app.post("/api/stats/sync")
+async def sync_kalshi_stats():
+    result = await AnalyticsManager.sync_with_kalshi(engine.client)
     return result
 
 

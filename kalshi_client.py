@@ -72,6 +72,46 @@ class KalshiClient(BaseExchange):
             return {"balance_dollars": balance_cents / 100.0, "raw": data, "simulated": False}
         return {"error": resp.text, "status_code": resp.status_code, "simulated": False}
 
+    async def get_fills(self, limit: int = 100, ticker: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Fetch account fills from Kalshi portfolio."""
+        if self.simulation_mode or not self.auth.is_configured:
+            return []
+
+        if self.client is None:
+            await self.initialize()
+
+        path = "/portfolio/fills"
+        query_params = f"?limit={limit}"
+        if ticker:
+            query_params += f"&ticker={ticker}"
+
+        headers = self._get_auth_headers("GET", path)
+        try:
+            resp = await self.client.get(f"{path}{query_params}", headers=headers)
+            if resp.status_code == 200:
+                return resp.json().get("fills", [])
+        except Exception as e:
+            print(f"[KalshiClient] get_fills error: {e}")
+        return []
+
+    async def get_settlements(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Fetch market settlements and payouts from Kalshi portfolio."""
+        if self.simulation_mode or not self.auth.is_configured:
+            return []
+
+        if self.client is None:
+            await self.initialize()
+
+        path = "/portfolio/settlements"
+        headers = self._get_auth_headers("GET", path)
+        try:
+            resp = await self.client.get(f"{path}?limit={limit}", headers=headers)
+            if resp.status_code == 200:
+                return resp.json().get("settlements", [])
+        except Exception as e:
+            print(f"[KalshiClient] get_settlements error: {e}")
+        return []
+
     async def search_game_events(self, query: str = "", limit: int = 30) -> List[Dict[str, Any]]:
         """
         Search open events that look like sports games.

@@ -9,4 +9,6 @@ kalshi*.txt
 venv/
 *.log
 *.deb
+*.db
+data/
 .DS_Store
