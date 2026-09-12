@@ -285,7 +285,7 @@ class FastBetEngine:
                 base_price = team_info.get("yes_ask") or team_info.get("last_price") or team_info.get("yes_bid") or 0.50
 
             limit_price = round(min(0.99, max(0.01, base_price + buffer)), 2)
-            contract_cost = max(0.01, base_price)
+            contract_cost = max(0.01, base_price if p_mode == "dynamic" else limit_price)
             v2_side = "bid"
 
         # -------------------------------------------------------------
@@ -323,7 +323,7 @@ class FastBetEngine:
                     base_price = target_line.get("fav_ask") or target_line.get("fav_bid") or 0.50
 
                 limit_price = round(min(0.99, max(0.01, base_price + buffer)), 2)
-                contract_cost = max(0.01, base_price)
+                contract_cost = max(0.01, base_price if p_mode == "dynamic" else limit_price)
                 v2_side = "bid"
             else:
                 # Buying Dog (NO)
@@ -334,7 +334,7 @@ class FastBetEngine:
                     base_price_no = target_line.get("dog_ask") or target_line.get("dog_bid") or 0.50
 
                 limit_price_no = round(min(0.99, max(0.01, base_price_no + buffer)), 2)
-                contract_cost = max(0.01, base_price_no)
+                contract_cost = max(0.01, base_price_no if p_mode == "dynamic" else limit_price_no)
                 # In Kalshi single-book V2, buying NO at limit_price_no is submitted as side="ask" at price (1.0 - limit_price_no)
                 limit_price = round(min(0.99, max(0.01, 1.0 - limit_price_no)), 2)
                 v2_side = "ask"
@@ -374,7 +374,7 @@ class FastBetEngine:
                     base_price = target_line.get("over_ask") or target_line.get("over_bid") or 0.50
 
                 limit_price = round(min(0.99, max(0.01, base_price + buffer)), 2)
-                contract_cost = max(0.01, base_price)
+                contract_cost = max(0.01, base_price if p_mode == "dynamic" else limit_price)
                 v2_side = "bid"
             else:
                 # Buying UNDER (NO)
@@ -385,7 +385,7 @@ class FastBetEngine:
                     base_price_no = target_line.get("under_ask") or target_line.get("under_bid") or 0.50
 
                 limit_price_no = round(min(0.99, max(0.01, base_price_no + buffer)), 2)
-                contract_cost = max(0.01, base_price_no)
+                contract_cost = max(0.01, base_price_no if p_mode == "dynamic" else limit_price_no)
                 limit_price = round(min(0.99, max(0.01, 1.0 - limit_price_no)), 2)
                 v2_side = "ask"
 
@@ -395,14 +395,15 @@ class FastBetEngine:
         # Calculate contract count based on target dollar amount
         count = max(1, int(round(target_dollars / contract_cost)))
 
-        # Send order to Kalshi with immediate_or_cancel (IOC)
-        # This executes dynamically up to the cap (base + 4¢) and immediately cancels if price spikes beyond the cap
+        # Time-in-force: dynamic orders use IOC (immediate or cancel); custom limit orders use GTC (resting)
+        tif = "immediate_or_cancel" if p_mode == "dynamic" else "good_till_canceled"
+
         order_result = await self.client.place_order(
             ticker=ticker,
             side=v2_side,
             price=limit_price,
             count=count,
-            time_in_force="immediate_or_cancel"
+            time_in_force=tif
         )
 
         total_elapsed_ms = round((time.perf_counter() - engine_start) * 1000.0, 2)

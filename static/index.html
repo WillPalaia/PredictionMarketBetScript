@@ -327,6 +327,11 @@
       color: #fff;
     }
 
+    .pill-bmode.active {
+      background: #8957e5;
+      color: #fff;
+    }
+
     .pill-cap.active {
       background: #238636;
       color: #fff;
@@ -697,6 +702,12 @@
   <!-- Bet Settings Strip -->
   <div class="config-strip">
     <div class="config-group">
+      <span class="config-title">MODE:</span>
+      <button class="pill pill-bmode active" data-bmode="dynamic" id="btnModeDynamic">⚡ Dynamic</button>
+      <button class="pill pill-bmode" data-bmode="limit" id="btnModeLimit">🎯 Limit</button>
+    </div>
+
+    <div class="config-group">
       <span class="config-title">BET:</span>
       <button class="pill active" data-bet="1">$1</button>
       <button class="pill" data-bet="2">$2</button>
@@ -705,12 +716,30 @@
       <button class="pill" data-bet="25">$25</button>
     </div>
 
-    <div class="config-group">
+    <!-- Dynamic Cap Group (Visible in Dynamic Market mode) -->
+    <div class="config-group" id="groupDynamicCap">
       <span class="config-title">DYNAMIC CAP:</span>
       <button class="pill pill-cap active" data-cap="0.04">+4¢ (Kalshi)</button>
       <button class="pill pill-cap" data-cap="0.02">+2¢</button>
       <button class="pill pill-cap" data-cap="0.06">+6¢</button>
       <button class="pill pill-cap" data-cap="0.00">+0¢ (Exact)</button>
+    </div>
+
+    <!-- Custom Limit Target (Visible in Limit mode) -->
+    <div class="config-group" id="groupLimitTarget" style="display: none;">
+      <span class="config-title">TARGET:</span>
+      <button class="pill active" data-pmode="ask" id="modeAsk">ASK (Instant)</button>
+      <button class="pill" data-pmode="bid" id="modeBid">BID (Maker)</button>
+    </div>
+
+    <!-- Custom Limit Buffer (Visible in Limit mode) -->
+    <div class="config-group" id="groupLimitBuffer" style="display: none;">
+      <span class="config-title">BUFFER:</span>
+      <button class="pill active" data-buf="0.00">+0¢ (Exact)</button>
+      <button class="pill" data-buf="0.01">+1¢</button>
+      <button class="pill" data-buf="0.02">+2¢</button>
+      <button class="pill" data-buf="0.03">+3¢</button>
+      <button class="pill" data-buf="0.05">+5¢</button>
     </div>
   </div>
 
@@ -771,9 +800,11 @@
   <script>
     // App State
     let isArmed = false;
+    let currentOrderType = 'dynamic';  // 'dynamic' (market IOC with cap) or 'limit' (custom limit GTC)
     let currentBetAmount = 1.0;
     let currentDynamicCap = 0.04;      // Default +4¢ Kalshi dynamic tolerance
-    let currentPriceMode = 'dynamic';  // Kalshi dynamic IOC pricing
+    let currentPriceTarget = 'ask';    // 'ask' (instant) or 'bid' (maker) when in limit mode
+    let currentBuffer = 0.00;          // +0¢ buffer when in limit mode
     let activeMarketType = 'moneyline'; // 'moneyline', 'spread', 'total'
     let activeSpreadIdx = 0;
     let activeTotalIdx = 0;
@@ -794,6 +825,10 @@
     const lineSelectorBar = document.getElementById('lineSelectorBar');
     const lineSelectorLabel = document.getElementById('lineSelectorLabel');
     const linePillsContainer = document.getElementById('linePillsContainer');
+
+    const groupDynamicCap = document.getElementById('groupDynamicCap');
+    const groupLimitTarget = document.getElementById('groupLimitTarget');
+    const groupLimitBuffer = document.getElementById('groupLimitBuffer');
 
     const btnSideA = document.getElementById('btnSideA');
     const btnSideB = document.getElementById('btnSideB');
@@ -867,6 +902,28 @@
       });
     });
 
+    // Pills: Order Mode (⚡ Dynamic vs 🎯 Limit)
+    document.querySelectorAll('[data-bmode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-bmode]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentOrderType = btn.getAttribute('data-bmode');
+
+        if (currentOrderType === 'dynamic') {
+          groupDynamicCap.style.display = 'flex';
+          groupLimitTarget.style.display = 'none';
+          groupLimitBuffer.style.display = 'none';
+        } else {
+          groupDynamicCap.style.display = 'none';
+          groupLimitTarget.style.display = 'flex';
+          groupLimitBuffer.style.display = 'flex';
+        }
+
+        vibrate(20);
+        renderActiveMarket();
+      });
+    });
+
     // Pills: Bet Size
     document.querySelectorAll('[data-bet]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -889,16 +946,48 @@
       });
     });
 
+    // Pills: Limit Target (Ask vs Bid)
+    document.querySelectorAll('[data-pmode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-pmode]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentPriceTarget = btn.getAttribute('data-pmode');
+        vibrate(20);
+        renderActiveMarket();
+      });
+    });
+
+    // Pills: Limit Buffer (+0¢, +1¢, etc.)
+    document.querySelectorAll('[data-buf]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-buf]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentBuffer = parseFloat(btn.getAttribute('data-buf'));
+        vibrate(20);
+        renderActiveMarket();
+      });
+    });
+
     // Render Market Display (Buttons & Lines)
     function renderActiveMarket() {
       if (!activeEvent) return;
 
+      const isDynamic = (currentOrderType === 'dynamic');
       const capCents = Math.round(currentDynamicCap * 100);
-      const capText = capCents > 0 ? `+${capCents}¢ DYNAMIC` : 'EXACT PRICE';
-      sideABadge.textContent = capText;
-      sideBBadge.textContent = capText;
+      const bufCents = Math.round(currentBuffer * 100);
 
-      const betTitle = `1-TAP $${currentBetAmount} MARKET BET`;
+      const betTitle = isDynamic 
+        ? `1-TAP $${currentBetAmount} MARKET BET`
+        : `1-TAP $${currentBetAmount} LIMIT BET (${currentPriceTarget.toUpperCase()})`;
+
+      if (isDynamic) {
+        const capText = capCents > 0 ? `+${capCents}¢ DYNAMIC` : 'EXACT PRICE';
+        sideABadge.textContent = capText;
+        sideBBadge.textContent = capText;
+      } else {
+        sideABadge.textContent = currentPriceTarget.toUpperCase();
+        sideBBadge.textContent = currentPriceTarget.toUpperCase();
+      }
 
       if (activeMarketType === 'moneyline') {
         lineSelectorBar.style.display = 'none';
@@ -915,17 +1004,35 @@
         if (teamA) {
           sideAName.textContent = teamA.name || 'Team A';
           const askA = teamA.yes_ask !== null ? Math.round(teamA.yes_ask * 100) : (teamA.last_price ? Math.round(teamA.last_price * 100) : null);
-          sideAPrice.textContent = askA !== null ? `${askA}¢` : '--¢';
-          const maxA = askA !== null ? Math.min(99, askA + capCents) : '--';
-          sideASub.textContent = `Max Fill: ${maxA}¢ (+${capCents}¢ cap) | Current Ask: ${askA ?? '--'}¢`;
+          const bidA = teamA.yes_bid !== null ? Math.round(teamA.yes_bid * 100) : null;
+
+          if (isDynamic) {
+            sideAPrice.textContent = askA !== null ? `${askA}¢` : '--¢';
+            const maxA = askA !== null ? Math.min(99, askA + capCents) : '--';
+            sideASub.textContent = `Max Fill: ${maxA}¢ (+${capCents}¢ cap) | Current Ask: ${askA ?? '--'}¢`;
+          } else {
+            const baseA = currentPriceTarget === 'bid' ? (bidA !== null ? bidA : askA) : (askA !== null ? askA : bidA);
+            const targetA = baseA !== null ? Math.min(99, Math.max(1, baseA + bufCents)) : null;
+            sideAPrice.textContent = targetA !== null ? `${targetA}¢` : '--¢';
+            sideASub.textContent = `Ask: ${askA ?? '--'}¢ | Bid: ${bidA ?? '--'}¢ (Buf: +${bufCents}¢)`;
+          }
         }
 
         if (teamB) {
           sideBName.textContent = teamB.name || 'Team B';
           const askB = teamB.yes_ask !== null ? Math.round(teamB.yes_ask * 100) : (teamB.last_price ? Math.round(teamB.last_price * 100) : null);
-          sideBPrice.textContent = askB !== null ? `${askB}¢` : '--¢';
-          const maxB = askB !== null ? Math.min(99, askB + capCents) : '--';
-          sideBSub.textContent = `Max Fill: ${maxB}¢ (+${capCents}¢ cap) | Current Ask: ${askB ?? '--'}¢`;
+          const bidB = teamB.yes_bid !== null ? Math.round(teamB.yes_bid * 100) : null;
+
+          if (isDynamic) {
+            sideBPrice.textContent = askB !== null ? `${askB}¢` : '--¢';
+            const maxB = askB !== null ? Math.min(99, askB + capCents) : '--';
+            sideBSub.textContent = `Max Fill: ${maxB}¢ (+${capCents}¢ cap) | Current Ask: ${askB ?? '--'}¢`;
+          } else {
+            const baseB = currentPriceTarget === 'bid' ? (bidB !== null ? bidB : askB) : (askA !== null ? askA : bidA);
+            const targetB = baseB !== null ? Math.min(99, Math.max(1, baseB + bufCents)) : null;
+            sideBPrice.textContent = targetB !== null ? `${targetB}¢` : '--¢';
+            sideBSub.textContent = `Ask: ${askB ?? '--'}¢ | Bid: ${bidB ?? '--'}¢ (Buf: +${bufCents}¢)`;
+          }
         }
       }
       else if (activeMarketType === 'spread') {
@@ -971,14 +1078,29 @@
           sideBName.textContent = activeLine.dog_label;
 
           const favAsk = activeLine.fav_ask !== null ? Math.round(activeLine.fav_ask * 100) : null;
-          sideAPrice.textContent = favAsk !== null ? `${favAsk}¢` : '--¢';
-          const maxFav = favAsk !== null ? Math.min(99, favAsk + capCents) : '--';
-          sideASub.textContent = `Max Fill: ${maxFav}¢ (+${capCents}¢ cap) | Current Ask: ${favAsk ?? '--'}¢`;
-
+          const favBid = activeLine.fav_bid !== null ? Math.round(activeLine.fav_bid * 100) : null;
           const dogAsk = activeLine.dog_ask !== null ? Math.round(activeLine.dog_ask * 100) : null;
-          sideBPrice.textContent = dogAsk !== null ? `${dogAsk}¢` : '--¢';
-          const maxDog = dogAsk !== null ? Math.min(99, dogAsk + capCents) : '--';
-          sideBSub.textContent = `Max Fill: ${maxDog}¢ (+${capCents}¢ cap) | Current Ask: ${dogAsk ?? '--'}¢`;
+          const dogBid = activeLine.dog_bid !== null ? Math.round(activeLine.dog_bid * 100) : null;
+
+          if (isDynamic) {
+            sideAPrice.textContent = favAsk !== null ? `${favAsk}¢` : '--¢';
+            const maxFav = favAsk !== null ? Math.min(99, favAsk + capCents) : '--';
+            sideASub.textContent = `Max Fill: ${maxFav}¢ (+${capCents}¢ cap) | Current Ask: ${favAsk ?? '--'}¢`;
+
+            sideBPrice.textContent = dogAsk !== null ? `${dogAsk}¢` : '--¢';
+            const maxDog = dogAsk !== null ? Math.min(99, dogAsk + capCents) : '--';
+            sideBSub.textContent = `Max Fill: ${maxDog}¢ (+${capCents}¢ cap) | Current Ask: ${dogAsk ?? '--'}¢`;
+          } else {
+            const baseFav = currentPriceTarget === 'bid' ? (favBid !== null ? favBid : favAsk) : (favAsk !== null ? favAsk : favBid);
+            const targetFav = baseFav !== null ? Math.min(99, Math.max(1, baseFav + bufCents)) : null;
+            sideAPrice.textContent = targetFav !== null ? `${targetFav}¢` : '--¢';
+            sideASub.textContent = `Ask: ${favAsk ?? '--'}¢ | Bid: ${favBid ?? '--'}¢ (Buf: +${bufCents}¢)`;
+
+            const baseDog = currentPriceTarget === 'bid' ? (dogBid !== null ? dogBid : dogAsk) : (dogAsk !== null ? dogAsk : dogBid);
+            const targetDog = baseDog !== null ? Math.min(99, Math.max(1, baseDog + bufCents)) : null;
+            sideBPrice.textContent = targetDog !== null ? `${targetDog}¢` : '--¢';
+            sideBSub.textContent = `Ask: ${dogAsk ?? '--'}¢ | Bid: ${dogBid ?? '--'}¢ (Buf: +${bufCents}¢)`;
+          }
         }
       }
       else if (activeMarketType === 'total') {
@@ -1024,14 +1146,29 @@
           sideBName.textContent = activeLine.under_label;
 
           const overAsk = activeLine.over_ask !== null ? Math.round(activeLine.over_ask * 100) : null;
-          sideAPrice.textContent = overAsk !== null ? `${overAsk}¢` : '--¢';
-          const maxOver = overAsk !== null ? Math.min(99, overAsk + capCents) : '--';
-          sideASub.textContent = `Max Fill: ${maxOver}¢ (+${capCents}¢ cap) | Current Ask: ${overAsk ?? '--'}¢`;
-
+          const overBid = activeLine.over_bid !== null ? Math.round(activeLine.over_bid * 100) : null;
           const underAsk = activeLine.under_ask !== null ? Math.round(activeLine.under_ask * 100) : null;
-          sideBPrice.textContent = underAsk !== null ? `${underAsk}¢` : '--¢';
-          const maxUnder = underAsk !== null ? Math.min(99, underAsk + capCents) : '--';
-          sideBSub.textContent = `Max Fill: ${maxUnder}¢ (+${capCents}¢ cap) | Current Ask: ${underAsk ?? '--'}¢`;
+          const underBid = activeLine.under_bid !== null ? Math.round(activeLine.under_bid * 100) : null;
+
+          if (isDynamic) {
+            sideAPrice.textContent = overAsk !== null ? `${overAsk}¢` : '--¢';
+            const maxOver = overAsk !== null ? Math.min(99, overAsk + capCents) : '--';
+            sideASub.textContent = `Max Fill: ${maxOver}¢ (+${capCents}¢ cap) | Current Ask: ${overAsk ?? '--'}¢`;
+
+            sideBPrice.textContent = underAsk !== null ? `${underAsk}¢` : '--¢';
+            const maxUnder = underAsk !== null ? Math.min(99, underAsk + capCents) : '--';
+            sideBSub.textContent = `Max Fill: ${maxUnder}¢ (+${capCents}¢ cap) | Current Ask: ${underAsk ?? '--'}¢`;
+          } else {
+            const baseOver = currentPriceTarget === 'bid' ? (overBid !== null ? overBid : overAsk) : (overAsk !== null ? overAsk : overBid);
+            const targetOver = baseOver !== null ? Math.min(99, Math.max(1, baseOver + bufCents)) : null;
+            sideAPrice.textContent = targetOver !== null ? `${targetOver}¢` : '--¢';
+            sideASub.textContent = `Ask: ${overAsk ?? '--'}¢ | Bid: ${overBid ?? '--'}¢ (Buf: +${bufCents}¢)`;
+
+            const baseUnder = currentPriceTarget === 'bid' ? (underBid !== null ? underBid : underAsk) : (underAsk !== null ? underAsk : underBid);
+            const targetUnder = baseUnder !== null ? Math.min(99, Math.max(1, baseUnder + bufCents)) : null;
+            sideBPrice.textContent = targetUnder !== null ? `${targetUnder}¢` : '--¢';
+            sideBSub.textContent = `Ask: ${underAsk ?? '--'}¢ | Bid: ${underBid ?? '--'}¢ (Buf: +${bufCents}¢)`;
+          }
         }
       }
     }
@@ -1081,6 +1218,7 @@
         label = sideChoice === 'A' ? line?.over_label : line?.under_label;
       }
 
+      const isDynamic = (currentOrderType === 'dynamic');
       const payload = {
         action: "bet",
         team: sideChoice,
@@ -1088,8 +1226,8 @@
         line_ticker: lineTicker,
         side: outcomeSide,
         amount: currentBetAmount,
-        buffer: currentDynamicCap,
-        price_mode: "dynamic",
+        buffer: isDynamic ? currentDynamicCap : currentBuffer,
+        price_mode: isDynamic ? "dynamic" : currentPriceTarget,
         label: label,
         client_send_time: clientSendTime
       };
@@ -1164,7 +1302,8 @@
         const priceCents = Math.round((order.display_price || order.price) * 100);
         const costStr = `$${(order.total_cost || ((order.display_price || order.price) * order.count)).toFixed(2)}`;
         const name = order.bet_label || order.team_name || order.ticker;
-        const summary = `FILLED: ${name} (${order.count}x @ ${priceCents}¢ = ${costStr})`;
+        const statusLabel = order.status === 'resting' ? 'OPEN (Resting)' : 'FILLED';
+        const summary = `${statusLabel}: ${name} (${order.count}x @ ${priceCents}¢ = ${costStr})`;
         logMessage(summary, true, latencyStr);
       } else {
         vibrate([200, 100, 200]);
