@@ -374,6 +374,7 @@ class KalshiClient(BaseExchange):
         side: str,  # 'bid' (buy Yes) or 'ask' (buy No in single-book)
         price: float,
         count: int,
+        time_in_force: str = "immediate_or_cancel",
         client_order_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -381,6 +382,7 @@ class KalshiClient(BaseExchange):
         In Kalshi single-book V2:
         - side: 'bid' buys YES outcome at limit price
         - side: 'ask' buys NO outcome in single-book at limit price
+        - time_in_force: 'immediate_or_cancel' (IOC) ensures dynamic market execution without resting orders
         """
         start_time = time.perf_counter()
         order_id = client_order_id or str(uuid.uuid4())
@@ -395,7 +397,7 @@ class KalshiClient(BaseExchange):
             "side": side,
             "count": str(order_count),
             "price": price_str,
-            "time_in_force": "good_till_canceled",
+            "time_in_force": time_in_force,
             "self_trade_prevention_type": "taker_at_cross",
             "client_order_id": order_id
         }
@@ -438,16 +440,38 @@ class KalshiClient(BaseExchange):
             if resp.status_code in (200, 201):
                 data = resp.json()
                 order_info = data.get("order", data)
+                fill_cnt_raw = order_info.get("fill_count")
+                fill_cnt = float(fill_cnt_raw) if fill_cnt_raw is not None else float(order_count)
+
+                # If IOC and fill_count is 0, the order was canceled by exchange due to price moving past dynamic cap
+                if fill_cnt == 0 and time_in_force == "immediate_or_cancel":
+                    return {
+                        "success": False,
+                        "simulated": False,
+                        "order_id": order_info.get("order_id", order_id),
+                        "ticker": ticker,
+                        "side": side,
+                        "price": bounded_price,
+                        "error": "Price moved beyond dynamic cap (Unfilled/Canceled)",
+                        "roundtrip_ms": round(elapsed_ms, 2),
+                        "timestamp": time.time(),
+                        "raw": data
+                    }
+
+                avg_price = self._parse_price(order_info.get("average_fill_price"))
+                actual_fill_price = avg_price if avg_price is not None else bounded_price
+                actual_count = int(round(fill_cnt)) if fill_cnt > 0 else order_count
+
                 return {
                     "success": True,
                     "simulated": False,
                     "order_id": order_info.get("order_id", order_id),
                     "ticker": ticker,
                     "side": side,
-                    "price": bounded_price,
-                    "count": order_count,
-                    "total_cost": round(bounded_price * order_count, 2),
-                    "status": order_info.get("status", "resting"),
+                    "price": actual_fill_price,
+                    "count": actual_count,
+                    "total_cost": round(actual_fill_price * actual_count, 2),
+                    "status": order_info.get("status", "executed"),
                     "roundtrip_ms": round(elapsed_ms, 2),
                     "timestamp": time.time(),
                     "raw": data
@@ -467,4 +491,5 @@ class KalshiClient(BaseExchange):
                 "error": str(exc),
                 "roundtrip_ms": round(elapsed_ms, 2)
             }
+
 

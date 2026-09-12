@@ -285,7 +285,7 @@ class FastBetEngine:
                 base_price = team_info.get("yes_ask") or team_info.get("last_price") or team_info.get("yes_bid") or 0.50
 
             limit_price = round(min(0.99, max(0.01, base_price + buffer)), 2)
-            contract_cost = limit_price
+            contract_cost = max(0.01, base_price)
             v2_side = "bid"
 
         # -------------------------------------------------------------
@@ -323,7 +323,7 @@ class FastBetEngine:
                     base_price = target_line.get("fav_ask") or target_line.get("fav_bid") or 0.50
 
                 limit_price = round(min(0.99, max(0.01, base_price + buffer)), 2)
-                contract_cost = limit_price
+                contract_cost = max(0.01, base_price)
                 v2_side = "bid"
             else:
                 # Buying Dog (NO)
@@ -334,7 +334,7 @@ class FastBetEngine:
                     base_price_no = target_line.get("dog_ask") or target_line.get("dog_bid") or 0.50
 
                 limit_price_no = round(min(0.99, max(0.01, base_price_no + buffer)), 2)
-                contract_cost = limit_price_no
+                contract_cost = max(0.01, base_price_no)
                 # In Kalshi single-book V2, buying NO at limit_price_no is submitted as side="ask" at price (1.0 - limit_price_no)
                 limit_price = round(min(0.99, max(0.01, 1.0 - limit_price_no)), 2)
                 v2_side = "ask"
@@ -374,7 +374,7 @@ class FastBetEngine:
                     base_price = target_line.get("over_ask") or target_line.get("over_bid") or 0.50
 
                 limit_price = round(min(0.99, max(0.01, base_price + buffer)), 2)
-                contract_cost = limit_price
+                contract_cost = max(0.01, base_price)
                 v2_side = "bid"
             else:
                 # Buying UNDER (NO)
@@ -385,7 +385,7 @@ class FastBetEngine:
                     base_price_no = target_line.get("under_ask") or target_line.get("under_bid") or 0.50
 
                 limit_price_no = round(min(0.99, max(0.01, base_price_no + buffer)), 2)
-                contract_cost = limit_price_no
+                contract_cost = max(0.01, base_price_no)
                 limit_price = round(min(0.99, max(0.01, 1.0 - limit_price_no)), 2)
                 v2_side = "ask"
 
@@ -395,12 +395,14 @@ class FastBetEngine:
         # Calculate contract count based on target dollar amount
         count = max(1, int(round(target_dollars / contract_cost)))
 
-        # Send order to Kalshi
+        # Send order to Kalshi with immediate_or_cancel (IOC)
+        # This executes dynamically up to the cap (base + 4¢) and immediately cancels if price spikes beyond the cap
         order_result = await self.client.place_order(
             ticker=ticker,
             side=v2_side,
             price=limit_price,
-            count=count
+            count=count,
+            time_in_force="immediate_or_cancel"
         )
 
         total_elapsed_ms = round((time.perf_counter() - engine_start) * 1000.0, 2)
@@ -408,18 +410,31 @@ class FastBetEngine:
         order_result["market_type"] = m_type
         order_result["team_side"] = side_str
         order_result["bet_label"] = custom_label or bet_label
-        order_result["display_price"] = contract_cost
+
+        if v2_side == "ask":
+            fill_price = order_result.get("price", limit_price)
+            display_price = round(max(0.01, min(0.99, 1.0 - fill_price)), 2)
+        else:
+            display_price = order_result.get("price", contract_cost)
+
+        order_result["display_price"] = display_price
         order_result["limit_price_submitted"] = limit_price
         order_result["price_mode"] = p_mode
         order_result["buffer_used"] = buffer
         order_result["target_dollars"] = target_dollars
-        order_result["total_cost"] = round(contract_cost * count, 2)
+        order_result["count"] = order_result.get("count", count)
+
+        if order_result.get("success"):
+            order_result["total_cost"] = round(display_price * order_result["count"], 2)
+        else:
+            order_result["total_cost"] = 0.00
 
         if client_send_time is not None:
             order_result["client_send_time"] = client_send_time
 
         # Store in history
         self.order_history.insert(0, order_result)
+
         if len(self.order_history) > 50:
             self.order_history.pop()
 

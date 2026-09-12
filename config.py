@@ -33,8 +33,9 @@ SIMULATION_MODE = os.getenv("SIMULATION_MODE", "true").lower() in ("true", "1", 
 
 # Default FastBet Parameters
 DEFAULT_BET_AMOUNT_DOLLARS = float(os.getenv("DEFAULT_BET_AMOUNT_DOLLARS", "1.00"))
-DEFAULT_PRICE_BUFFER_CENTS = float(os.getenv("DEFAULT_PRICE_BUFFER_CENTS", "0.00"))  # +0 cents (exact price by default)
-DEFAULT_PRICE_MODE = os.getenv("DEFAULT_PRICE_MODE", "ask")  # "ask" (taker/instant) or "bid" (maker/resting)
+DEFAULT_DYNAMIC_CAP_CENTS = float(os.getenv("DEFAULT_DYNAMIC_CAP_CENTS", "0.04"))  # +4 cents dynamic price tolerance
+DEFAULT_PRICE_BUFFER_CENTS = DEFAULT_DYNAMIC_CAP_CENTS
+DEFAULT_PRICE_MODE = os.getenv("DEFAULT_PRICE_MODE", "dynamic")
 POLL_INTERVAL_SECONDS = float(os.getenv("POLL_INTERVAL_SECONDS", "0.15"))
 
 # Server settings
