@@ -189,6 +189,154 @@ class KalshiClient(BaseExchange):
             return self._format_event(ev)
         return None
 
+    async def get_game_bundle(self, event_ticker: str) -> Dict[str, Any]:
+        """
+        Fetches full game bundle: Moneyline, Point Spread lines, and Total (Over/Under) lines.
+        Queries the game event and its associated spread and total events concurrently.
+        """
+        if self.client is None:
+            await self.initialize()
+
+        bundle = {
+            "event_ticker": event_ticker,
+            "title": "",
+            "category": "Sports",
+            "moneyline": None,
+            "spread": [],
+            "total": [],
+            "spread_ticker": None,
+            "total_ticker": None
+        }
+
+        # Derive spread and total event tickers from standard Kalshi naming pattern
+        spread_ticker = None
+        total_ticker = None
+        if "GAME" in event_ticker:
+            spread_ticker = event_ticker.replace("GAME", "SPREAD")
+            total_ticker = event_ticker.replace("GAME", "TOTAL")
+            bundle["spread_ticker"] = spread_ticker
+            bundle["total_ticker"] = total_ticker
+
+        async def fetch_event_data(url: str) -> Dict[str, Any]:
+            try:
+                r = await self.client.get(url)
+                if r.status_code == 200:
+                    return r.json().get("event", {})
+            except Exception as exc:
+                print(f"[KalshiClient] fetch_event_data error ({url}): {exc}")
+            return {}
+
+        tasks = [fetch_event_data(f"/events/{event_ticker}?with_nested_markets=true")]
+        if spread_ticker:
+            tasks.append(fetch_event_data(f"/events/{spread_ticker}?with_nested_markets=true"))
+        else:
+            tasks.append(asyncio.sleep(0, result={}))
+
+        if total_ticker:
+            tasks.append(fetch_event_data(f"/events/{total_ticker}?with_nested_markets=true"))
+        else:
+            tasks.append(asyncio.sleep(0, result={}))
+
+        res_game, res_spread, res_total = await asyncio.gather(*tasks, return_exceptions=True)
+
+        team_a_name = "Team A"
+        team_b_name = "Team B"
+
+        # 1. Parse Moneyline
+        if isinstance(res_game, dict) and res_game:
+            bundle["title"] = res_game.get("title", "")
+            bundle["category"] = res_game.get("category", "Sports")
+            markets = res_game.get("markets", [])
+            if len(markets) >= 2:
+                m_a = markets[0]
+                m_b = markets[1]
+                team_a_name = m_a.get("yes_sub_title") or m_a.get("title", "").split(" wins")[0]
+                team_b_name = m_b.get("yes_sub_title") or m_b.get("title", "").split(" wins")[0]
+
+                bundle["moneyline"] = {
+                    "event_ticker": event_ticker,
+                    "title": res_game.get("title"),
+                    "team_a": {
+                        "name": team_a_name,
+                        "ticker": m_a.get("ticker"),
+                        "title": m_a.get("title"),
+                        "yes_bid": self._parse_price(m_a.get("yes_bid_dollars") if m_a.get("yes_bid_dollars") is not None else m_a.get("yes_bid")),
+                        "yes_ask": self._parse_price(m_a.get("yes_ask_dollars") if m_a.get("yes_ask_dollars") is not None else m_a.get("yes_ask")),
+                        "last_price": self._parse_price(m_a.get("last_price_dollars") if m_a.get("last_price_dollars") is not None else m_a.get("last_price"))
+                    },
+                    "team_b": {
+                        "name": team_b_name,
+                        "ticker": m_b.get("ticker"),
+                        "title": m_b.get("title"),
+                        "yes_bid": self._parse_price(m_b.get("yes_bid_dollars") if m_b.get("yes_bid_dollars") is not None else m_b.get("yes_bid")),
+                        "yes_ask": self._parse_price(m_b.get("yes_ask_dollars") if m_b.get("yes_ask_dollars") is not None else m_b.get("yes_ask")),
+                        "last_price": self._parse_price(m_b.get("last_price_dollars") if m_b.get("last_price_dollars") is not None else m_b.get("last_price"))
+                    }
+                }
+
+        # 2. Parse Spread Lines
+        if isinstance(res_spread, dict) and res_spread:
+            spread_mkts = res_spread.get("markets", [])
+            for m in spread_mkts:
+                sub = m.get("yes_sub_title") or m.get("title", "")
+                team_fav = team_a_name if team_a_name.lower() in sub.lower() else team_b_name
+                team_dog = team_b_name if team_fav == team_a_name else team_a_name
+                strike = m.get("floor_strike")
+
+                y_bid = self._parse_price(m.get("yes_bid_dollars") if m.get("yes_bid_dollars") is not None else m.get("yes_bid"))
+                y_ask = self._parse_price(m.get("yes_ask_dollars") if m.get("yes_ask_dollars") is not None else m.get("yes_ask"))
+                n_bid = self._parse_price(m.get("no_bid_dollars") if m.get("no_bid_dollars") is not None else m.get("no_bid"))
+                n_ask = self._parse_price(m.get("no_ask_dollars") if m.get("no_ask_dollars") is not None else m.get("no_ask"))
+
+                if n_ask is None and y_bid is not None:
+                    n_ask = round(1.0 - y_bid, 2)
+                if n_bid is None and y_ask is not None:
+                    n_bid = round(1.0 - y_ask, 2)
+
+                bundle["spread"].append({
+                    "ticker": m.get("ticker"),
+                    "strike": strike,
+                    "team_fav": team_fav,
+                    "team_dog": team_dog,
+                    "fav_label": f"{team_fav} -{strike}" if strike is not None else f"{team_fav} Cover",
+                    "dog_label": f"{team_dog} +{strike}" if strike is not None else f"{team_dog} Cover",
+                    "fav_bid": y_bid,
+                    "fav_ask": y_ask,
+                    "dog_bid": n_bid,
+                    "dog_ask": n_ask,
+                    "status": m.get("status", "active")
+                })
+
+        # 3. Parse Total (Over/Under) Lines
+        if isinstance(res_total, dict) and res_total:
+            total_mkts = res_total.get("markets", [])
+            for m in total_mkts:
+                strike = m.get("floor_strike")
+                y_bid = self._parse_price(m.get("yes_bid_dollars") if m.get("yes_bid_dollars") is not None else m.get("yes_bid"))
+                y_ask = self._parse_price(m.get("yes_ask_dollars") if m.get("yes_ask_dollars") is not None else m.get("yes_ask"))
+                n_bid = self._parse_price(m.get("no_bid_dollars") if m.get("no_bid_dollars") is not None else m.get("no_bid"))
+                n_ask = self._parse_price(m.get("no_ask_dollars") if m.get("no_ask_dollars") is not None else m.get("no_ask"))
+
+                if n_ask is None and y_bid is not None:
+                    n_ask = round(1.0 - y_bid, 2)
+                if n_bid is None and y_ask is not None:
+                    n_bid = round(1.0 - y_ask, 2)
+
+                bundle["total"].append({
+                    "ticker": m.get("ticker"),
+                    "strike": strike,
+                    "over_label": f"OVER {strike}" if strike is not None else "OVER",
+                    "under_label": f"UNDER {strike}" if strike is not None else "UNDER",
+                    "over_bid": y_bid,
+                    "over_ask": y_ask,
+                    "under_bid": n_bid,
+                    "under_ask": n_ask,
+                    "status": m.get("status", "active")
+                })
+            bundle["total"].sort(key=lambda x: x["strike"] if x["strike"] is not None else 0)
+
+        return bundle
+
     async def get_market_quote(self, ticker: str) -> Dict[str, Any]:
         """Fetch ultra-fresh orderbook top-of-book for a market ticker."""
         if self.client is None:
@@ -201,10 +349,20 @@ class KalshiClient(BaseExchange):
             yes_bid = self._parse_price(m.get("yes_bid_dollars") if m.get("yes_bid_dollars") is not None else m.get("yes_bid"))
             yes_ask = self._parse_price(m.get("yes_ask_dollars") if m.get("yes_ask_dollars") is not None else m.get("yes_ask"))
             last_price = self._parse_price(m.get("last_price_dollars") if m.get("last_price_dollars") is not None else m.get("last_price"))
+            no_bid = self._parse_price(m.get("no_bid_dollars") if m.get("no_bid_dollars") is not None else m.get("no_bid"))
+            no_ask = self._parse_price(m.get("no_ask_dollars") if m.get("no_ask_dollars") is not None else m.get("no_ask"))
+
+            if no_ask is None and yes_bid is not None:
+                no_ask = round(1.0 - yes_bid, 2)
+            if no_bid is None and yes_ask is not None:
+                no_bid = round(1.0 - yes_ask, 2)
+
             return {
                 "ticker": ticker,
                 "yes_bid": yes_bid,
                 "yes_ask": yes_ask,
+                "no_bid": no_bid,
+                "no_ask": no_ask,
                 "last_price": last_price,
                 "status": m.get("status", "active")
             }
@@ -213,13 +371,16 @@ class KalshiClient(BaseExchange):
     async def place_order(
         self,
         ticker: str,
-        side: str,  # 'bid' (buy Yes) or 'ask'
+        side: str,  # 'bid' (buy Yes) or 'ask' (buy No in single-book)
         price: float,
         count: int,
         client_order_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Submits an order with exact timing diagnostics.
+        In Kalshi single-book V2:
+        - side: 'bid' buys YES outcome at limit price
+        - side: 'ask' buys NO outcome in single-book at limit price
         """
         start_time = time.perf_counter()
         order_id = client_order_id or str(uuid.uuid4())
@@ -227,11 +388,12 @@ class KalshiClient(BaseExchange):
         # Safety price bounds (Kalshi contracts trade between $0.01 and $0.99)
         bounded_price = max(0.01, min(0.99, round(price, 2)))
         price_str = f"{bounded_price:.4f}"
+        order_count = max(1, count)
 
         payload = {
             "ticker": ticker,
             "side": side,
-            "count": str(count),
+            "count": str(order_count),
             "price": price_str,
             "time_in_force": "good_till_canceled",
             "self_trade_prevention_type": "taker_at_cross",
@@ -248,8 +410,8 @@ class KalshiClient(BaseExchange):
                 "ticker": ticker,
                 "side": side,
                 "price": bounded_price,
-                "count": count,
-                "total_cost": round(bounded_price * count, 2),
+                "count": order_count,
+                "total_cost": round(bounded_price * order_count, 2),
                 "status": "executed",
                 "roundtrip_ms": round(elapsed_ms, 2),
                 "timestamp": time.time()
@@ -283,34 +445,14 @@ class KalshiClient(BaseExchange):
                     "ticker": ticker,
                     "side": side,
                     "price": bounded_price,
-                    "count": count,
-                    "total_cost": round(bounded_price * count, 2),
+                    "count": order_count,
+                    "total_cost": round(bounded_price * order_count, 2),
                     "status": order_info.get("status", "resting"),
                     "roundtrip_ms": round(elapsed_ms, 2),
                     "timestamp": time.time(),
                     "raw": data
                 }
             else:
-                # Try legacy path if V2 event order path returns 404
-                if resp.status_code == 404:
-                    legacy_path = "/portfolio/orders"
-                    headers_leg = self._get_auth_headers("POST", legacy_path)
-                    resp_leg = await self.client.post(legacy_path, json=payload, headers=headers_leg)
-                    elapsed_ms_leg = (time.perf_counter() - start_time) * 1000.0
-                    if resp_leg.status_code in (200, 201):
-                        data_leg = resp_leg.json()
-                        order_info = data_leg.get("order", data_leg)
-                        return {
-                            "success": True,
-                            "simulated": False,
-                            "order_id": order_info.get("order_id", order_id),
-                            "ticker": ticker,
-                            "price": bounded_price,
-                            "count": count,
-                            "status": order_info.get("status", "resting"),
-                            "roundtrip_ms": round(elapsed_ms_leg, 2)
-                        }
-
                 return {
                     "success": False,
                     "simulated": False,
@@ -325,3 +467,4 @@ class KalshiClient(BaseExchange):
                 "error": str(exc),
                 "roundtrip_ms": round(elapsed_ms, 2)
             }
+

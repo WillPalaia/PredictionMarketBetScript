@@ -5,6 +5,7 @@ from kalshi_client import KalshiClient
 from config import (
     DEFAULT_BET_AMOUNT_DOLLARS,
     DEFAULT_PRICE_BUFFER_CENTS,
+    DEFAULT_PRICE_MODE,
     POLL_INTERVAL_SECONDS
 )
 
@@ -12,8 +13,9 @@ from config import (
 class FastBetEngine:
     """
     Central fast betting orchestrator.
-    Maintains pre-cached real-time quotes for both teams in the active game,
-    handles high-speed order calculation and execution, and manages multi-client subscriptions.
+    Maintains pre-cached real-time quotes for Moneyline, Spread, and Over/Under
+    in the active game, handles high-speed order calculation and execution,
+    and manages multi-client subscriptions.
     """
 
     def __init__(self):
@@ -21,6 +23,7 @@ class FastBetEngine:
         self.active_event: Optional[Dict[str, Any]] = None
         self.default_bet_amount = DEFAULT_BET_AMOUNT_DOLLARS
         self.default_buffer = DEFAULT_PRICE_BUFFER_CENTS
+        self.default_price_mode = DEFAULT_PRICE_MODE
         self.poll_interval = POLL_INTERVAL_SECONDS
         self._poll_task: Optional[asyncio.Task] = None
         self._subscribers: List[Callable[[Dict[str, Any]], Any]] = []
@@ -58,14 +61,57 @@ class FastBetEngine:
                 print(f"[Engine] Broadcast error: {e}")
 
     async def select_game_by_event(self, event_data: Dict[str, Any]):
-        """Set the active game for 1-tap direct betting."""
+        """Set the active game for 1-tap direct betting, loading all market types."""
+        event_ticker = event_data.get("event_ticker")
+        if event_ticker and event_ticker != "MANUAL":
+            try:
+                bundle = await self.client.get_game_bundle(event_ticker)
+                if bundle.get("moneyline"):
+                    self.active_event = bundle["moneyline"]
+                    self.active_event["spread"] = bundle.get("spread", [])
+                    self.active_event["total"] = bundle.get("total", [])
+
+                    # Find best default line (closest to 50¢)
+                    self.active_event["active_spread_idx"] = self._find_best_line_idx(self.active_event["spread"], "fav_ask")
+                    self.active_event["active_total_idx"] = self._find_best_line_idx(self.active_event["total"], "over_ask")
+
+                    await self._broadcast({
+                        "type": "game_selected",
+                        "active_event": self.active_event
+                    })
+                    return
+            except Exception as e:
+                print(f"[Engine] Error loading full game bundle for {event_ticker}: {e}")
+
+        # Fallback
         self.active_event = event_data
-        # Immediately fetch initial quotes
+        if "spread" not in self.active_event:
+            self.active_event["spread"] = []
+        if "total" not in self.active_event:
+            self.active_event["total"] = []
+        self.active_event["active_spread_idx"] = 0
+        self.active_event["active_total_idx"] = 0
+
         await self._refresh_quotes()
         await self._broadcast({
             "type": "game_selected",
             "active_event": self.active_event
         })
+
+    def _find_best_line_idx(self, lines: List[Dict[str, Any]], price_key: str) -> int:
+        """Find the index of the line closest to 50 cents (the primary consensus line)."""
+        if not lines:
+            return 0
+        best_idx = 0
+        best_diff = 1.0
+        for i, line in enumerate(lines):
+            p = line.get(price_key)
+            if p is not None:
+                diff = abs(p - 0.50)
+                if diff < best_diff:
+                    best_diff = diff
+                    best_idx = i
+        return best_idx
 
     async def select_game_by_tickers(
         self,
@@ -92,7 +138,11 @@ class FastBetEngine:
                 "yes_bid": None,
                 "yes_ask": None,
                 "last_price": None
-            }
+            },
+            "spread": [],
+            "total": [],
+            "active_spread_idx": 0,
+            "active_total_idx": 0
         }
         await self._refresh_quotes()
         await self._broadcast({
@@ -116,41 +166,47 @@ class FastBetEngine:
         if not self.active_event:
             return
 
-        # Fast path: single-request event fetch (cuts latency in half)
         event_ticker = self.active_event.get("event_ticker")
         if event_ticker and event_ticker != "MANUAL":
             try:
-                updated_event = await self.client.get_event(event_ticker)
-                if updated_event:
-                    t_a = self.active_event["team_a"]["ticker"]
-                    t_b = self.active_event["team_b"]["ticker"]
-                    for src in [updated_event.get("team_a"), updated_event.get("team_b")]:
-                        if src and src.get("ticker") == t_a:
-                            self.active_event["team_a"]["yes_bid"] = src.get("yes_bid")
-                            self.active_event["team_a"]["yes_ask"] = src.get("yes_ask")
-                            self.active_event["team_a"]["last_price"] = src.get("last_price")
-                        elif src and src.get("ticker") == t_b:
-                            self.active_event["team_b"]["yes_bid"] = src.get("yes_bid")
-                            self.active_event["team_b"]["yes_ask"] = src.get("yes_ask")
-                            self.active_event["team_b"]["last_price"] = src.get("last_price")
+                bundle = await self.client.get_game_bundle(event_ticker)
+                if bundle.get("moneyline"):
+                    # Update moneyline
+                    ml = bundle["moneyline"]
+                    self.active_event["team_a"]["yes_bid"] = ml["team_a"]["yes_bid"]
+                    self.active_event["team_a"]["yes_ask"] = ml["team_a"]["yes_ask"]
+                    self.active_event["team_a"]["last_price"] = ml["team_a"]["last_price"]
+
+                    self.active_event["team_b"]["yes_bid"] = ml["team_b"]["yes_bid"]
+                    self.active_event["team_b"]["yes_ask"] = ml["team_b"]["yes_ask"]
+                    self.active_event["team_b"]["last_price"] = ml["team_b"]["last_price"]
+
+                    # Update spread and total lists while preserving user's line selection
+                    if bundle.get("spread"):
+                        self.active_event["spread"] = bundle["spread"]
+                    if bundle.get("total"):
+                        self.active_event["total"] = bundle["total"]
 
                     await self._broadcast({
                         "type": "quote_update",
                         "team_a": self.active_event["team_a"],
                         "team_b": self.active_event["team_b"],
+                        "spread": self.active_event.get("spread", []),
+                        "total": self.active_event.get("total", []),
                         "timestamp": time.time()
                     })
                     return
-            except Exception as e:
+            except Exception:
                 pass
 
-        # Fallback path: parallel per-market quotes
-        ticker_a = self.active_event["team_a"]["ticker"]
-        ticker_b = self.active_event["team_b"]["ticker"]
+        # Fallback for manual or single tickers
+        t_a = self.active_event.get("team_a", {}).get("ticker")
+        t_b = self.active_event.get("team_b", {}).get("ticker")
+        if not t_a or not t_b:
+            return
 
-        quote_a_task = self.client.get_market_quote(ticker_a)
-        quote_b_task = self.client.get_market_quote(ticker_b)
-
+        quote_a_task = self.client.get_market_quote(t_a)
+        quote_b_task = self.client.get_market_quote(t_b)
         quote_a, quote_b = await asyncio.gather(quote_a_task, quote_b_task, return_exceptions=True)
 
         updated = False
@@ -171,59 +227,194 @@ class FastBetEngine:
                 "type": "quote_update",
                 "team_a": self.active_event["team_a"],
                 "team_b": self.active_event["team_b"],
+                "spread": self.active_event.get("spread", []),
+                "total": self.active_event.get("total", []),
                 "timestamp": time.time()
             })
 
     async def execute_direct_bet(
         self,
-        team_side: str,  # 'A' or 'B'
+        team_side: Optional[str] = None,  # 'A', 'B', 'over', 'under'
+        market_type: str = "moneyline",    # 'moneyline', 'spread', 'total'
+        line_ticker: Optional[str] = None,
+        outcome_side: Optional[str] = None,  # 'yes' or 'no'
         amount_dollars: Optional[float] = None,
         buffer_cents: Optional[float] = None,
-        client_send_time: Optional[float] = None
+        price_mode: Optional[str] = None,  # 'ask' (instant/taker) or 'bid' (maker/resting)
+        client_send_time: Optional[float] = None,
+        custom_label: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         ULTRA-FAST PATH:
-        Triggered directly by tapping Team A or Team B button.
+        Executes 1-tap direct orders for Moneyline, Spread, or Over/Under markets.
+        Supports both 'ask' (instant fill / taker) and 'bid' (resting maker order).
         """
         engine_start = time.perf_counter()
 
         if not self.active_event:
             return {"success": False, "error": "No active game selected"}
 
-        team_info = self.active_event["team_a"] if team_side == "A" else self.active_event["team_b"]
-        ticker = team_info.get("ticker")
-        if not ticker:
-            return {"success": False, "error": f"No ticker for Team {team_side}"}
-
         target_dollars = amount_dollars if amount_dollars and amount_dollars > 0 else self.default_bet_amount
         buffer = buffer_cents if buffer_cents is not None else self.default_buffer
+        p_mode = (price_mode or self.default_price_mode).lower()
+        m_type = (market_type or "moneyline").lower()
+        side_str = (team_side or "A").upper()
 
-        # Calculate limit price using pre-cached ask or last_price
-        cached_ask = team_info.get("yes_ask")
-        cached_last = team_info.get("last_price")
-        base_price = cached_ask if cached_ask is not None else (cached_last if cached_last is not None else 0.50)
+        ticker = None
+        v2_side = "bid"
+        limit_price = 0.50
+        contract_cost = 0.50
+        bet_label = "Bet"
 
-        # Marketable limit price: base + buffer (e.g. 0.36 + 0.03 = 0.39)
-        limit_price = round(min(0.99, max(0.01, base_price + buffer)), 2)
+        # -------------------------------------------------------------
+        # 1. MONEYLINE BET
+        # -------------------------------------------------------------
+        if m_type == "moneyline":
+            team_info = self.active_event["team_a"] if side_str == "A" else self.active_event["team_b"]
+            ticker = team_info.get("ticker")
+            if not ticker:
+                return {"success": False, "error": f"No ticker for Team {side_str}"}
 
-        # Calculate contracts count for target dollar size
-        # e.g., $1.00 / $0.39 = ~2.56 -> at least 1 contract, or round(target_dollars / limit_price)
-        count = max(1, int(round(target_dollars / limit_price)))
+            team_name = team_info.get("name", f"Team {side_str}")
+            bet_label = f"{team_name} (Moneyline)"
 
-        # Send order to exchange
+            # Price selection based on user mode
+            if p_mode == "bid":
+                base_price = team_info.get("yes_bid") or team_info.get("yes_ask") or 0.50
+            else:
+                base_price = team_info.get("yes_ask") or team_info.get("last_price") or team_info.get("yes_bid") or 0.50
+
+            limit_price = round(min(0.99, max(0.01, base_price + buffer)), 2)
+            contract_cost = limit_price
+            v2_side = "bid"
+
+        # -------------------------------------------------------------
+        # 2. SPREAD BET
+        # -------------------------------------------------------------
+        elif m_type == "spread":
+            spread_lines = self.active_event.get("spread", [])
+            target_line = None
+
+            if line_ticker:
+                for ln in spread_lines:
+                    if ln.get("ticker") == line_ticker:
+                        target_line = ln
+                        break
+
+            if not target_line and spread_lines:
+                idx = self.active_event.get("active_spread_idx", 0)
+                if 0 <= idx < len(spread_lines):
+                    target_line = spread_lines[idx]
+                else:
+                    target_line = spread_lines[0]
+
+            if not target_line:
+                return {"success": False, "error": "No spread lines available for this game"}
+
+            ticker = target_line.get("ticker")
+            is_fav = (side_str in ("A", "FAV") or outcome_side == "yes")
+
+            if is_fav:
+                # Buying Favorite (YES)
+                bet_label = target_line.get("fav_label", f"{target_line.get('team_fav')} Spread")
+                if p_mode == "bid":
+                    base_price = target_line.get("fav_bid") or target_line.get("fav_ask") or 0.50
+                else:
+                    base_price = target_line.get("fav_ask") or target_line.get("fav_bid") or 0.50
+
+                limit_price = round(min(0.99, max(0.01, base_price + buffer)), 2)
+                contract_cost = limit_price
+                v2_side = "bid"
+            else:
+                # Buying Dog (NO)
+                bet_label = target_line.get("dog_label", f"{target_line.get('team_dog')} Spread")
+                if p_mode == "bid":
+                    base_price_no = target_line.get("dog_bid") or target_line.get("dog_ask") or 0.50
+                else:
+                    base_price_no = target_line.get("dog_ask") or target_line.get("dog_bid") or 0.50
+
+                limit_price_no = round(min(0.99, max(0.01, base_price_no + buffer)), 2)
+                contract_cost = limit_price_no
+                # In Kalshi single-book V2, buying NO at limit_price_no is submitted as side="ask" at price (1.0 - limit_price_no)
+                limit_price = round(min(0.99, max(0.01, 1.0 - limit_price_no)), 2)
+                v2_side = "ask"
+
+        # -------------------------------------------------------------
+        # 3. TOTAL (OVER/UNDER) BET
+        # -------------------------------------------------------------
+        elif m_type == "total":
+            total_lines = self.active_event.get("total", [])
+            target_line = None
+
+            if line_ticker:
+                for ln in total_lines:
+                    if ln.get("ticker") == line_ticker:
+                        target_line = ln
+                        break
+
+            if not target_line and total_lines:
+                idx = self.active_event.get("active_total_idx", 0)
+                if 0 <= idx < len(total_lines):
+                    target_line = total_lines[idx]
+                else:
+                    target_line = total_lines[0]
+
+            if not target_line:
+                return {"success": False, "error": "No total (O/U) lines available for this game"}
+
+            ticker = target_line.get("ticker")
+            is_over = (side_str in ("A", "OVER") or outcome_side == "yes")
+
+            if is_over:
+                # Buying OVER (YES)
+                bet_label = target_line.get("over_label", "OVER")
+                if p_mode == "bid":
+                    base_price = target_line.get("over_bid") or target_line.get("over_ask") or 0.50
+                else:
+                    base_price = target_line.get("over_ask") or target_line.get("over_bid") or 0.50
+
+                limit_price = round(min(0.99, max(0.01, base_price + buffer)), 2)
+                contract_cost = limit_price
+                v2_side = "bid"
+            else:
+                # Buying UNDER (NO)
+                bet_label = target_line.get("under_label", "UNDER")
+                if p_mode == "bid":
+                    base_price_no = target_line.get("under_bid") or target_line.get("under_ask") or 0.50
+                else:
+                    base_price_no = target_line.get("under_ask") or target_line.get("under_bid") or 0.50
+
+                limit_price_no = round(min(0.99, max(0.01, base_price_no + buffer)), 2)
+                contract_cost = limit_price_no
+                limit_price = round(min(0.99, max(0.01, 1.0 - limit_price_no)), 2)
+                v2_side = "ask"
+
+        if not ticker:
+            return {"success": False, "error": "Unable to determine contract ticker"}
+
+        # Calculate contract count based on target dollar amount
+        count = max(1, int(round(target_dollars / contract_cost)))
+
+        # Send order to Kalshi
         order_result = await self.client.place_order(
             ticker=ticker,
-            side="bid",  # Buy Yes on this team's market
+            side=v2_side,
             price=limit_price,
             count=count
         )
 
         total_elapsed_ms = round((time.perf_counter() - engine_start) * 1000.0, 2)
         order_result["engine_latency_ms"] = total_elapsed_ms
-        order_result["team_side"] = team_side
-        order_result["team_name"] = team_info.get("name")
-        order_result["base_price"] = base_price
+        order_result["market_type"] = m_type
+        order_result["team_side"] = side_str
+        order_result["bet_label"] = custom_label or bet_label
+        order_result["display_price"] = contract_cost
+        order_result["limit_price_submitted"] = limit_price
+        order_result["price_mode"] = p_mode
         order_result["buffer_used"] = buffer
+        order_result["target_dollars"] = target_dollars
+        order_result["total_cost"] = round(contract_cost * count, 2)
+
         if client_send_time is not None:
             order_result["client_send_time"] = client_send_time
 
@@ -247,5 +438,6 @@ class FastBetEngine:
             "simulation_mode": self.client.simulation_mode,
             "default_bet_amount": self.default_bet_amount,
             "default_buffer": self.default_buffer,
+            "default_price_mode": self.default_price_mode,
             "history": self.order_history[:10]
         }

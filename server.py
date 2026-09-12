@@ -57,9 +57,14 @@ async def serve_index():
 
 # Request Models
 class BetRequest(BaseModel):
-    team: str  # 'A' or 'B'
+    team: Optional[str] = "A"  # 'A', 'B', 'over', 'under'
+    market_type: Optional[str] = "moneyline"  # 'moneyline', 'spread', 'total'
+    line_ticker: Optional[str] = None
+    side: Optional[str] = None  # 'yes' or 'no'
     amount: Optional[float] = None
     buffer: Optional[float] = None
+    price_mode: Optional[str] = "ask"  # 'ask' or 'bid'
+    label: Optional[str] = None
 
 
 class ManualGameRequest(BaseModel):
@@ -106,12 +111,15 @@ async def set_manual_game(req: ManualGameRequest):
 
 @app.post("/api/bet")
 async def place_bet(req: BetRequest):
-    if req.team.upper() not in ("A", "B"):
-        raise HTTPException(status_code=400, detail="Team must be 'A' or 'B'")
     result = await engine.execute_direct_bet(
-        team_side=req.team.upper(),
+        team_side=req.team.upper() if req.team else "A",
+        market_type=req.market_type or "moneyline",
+        line_ticker=req.line_ticker,
+        outcome_side=req.side,
         amount_dollars=req.amount,
-        buffer_cents=req.buffer
+        buffer_cents=req.buffer,
+        price_mode=req.price_mode or "ask",
+        custom_label=req.label
     )
     return result
 
@@ -148,17 +156,27 @@ async def websocket_endpoint(websocket: WebSocket):
 
             elif action == "bet":
                 # 1-TAP INSTANT EXECUTION
-                team_side = str(data.get("team", "")).upper()
+                team_side = str(data.get("team", "A")).upper()
+                market_type = str(data.get("market_type", "moneyline"))
+                line_ticker = data.get("line_ticker")
+                outcome_side = data.get("side")
                 amount = data.get("amount")
                 buffer_val = data.get("buffer")
+                price_mode = data.get("price_mode", "ask")
                 client_send_time = data.get("client_send_time")
+                label = data.get("label")
 
                 # execute_direct_bet already broadcasts 'order_executed' to all subscribed websockets
                 await engine.execute_direct_bet(
                     team_side=team_side,
+                    market_type=market_type,
+                    line_ticker=line_ticker,
+                    outcome_side=outcome_side,
                     amount_dollars=amount,
                     buffer_cents=buffer_val,
-                    client_send_time=client_send_time
+                    price_mode=price_mode,
+                    client_send_time=client_send_time,
+                    custom_label=label
                 )
 
     except WebSocketDisconnect:
@@ -167,6 +185,7 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"[Server] WebSocket error: {e}")
     finally:
         engine.unsubscribe(send_update)
+
 
 
 def get_lan_ip() -> str:

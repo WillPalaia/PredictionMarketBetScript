@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>FastBet - Kalshi 1-Tap</title>
+  <title>FastBet - Kalshi Direct 1-Tap</title>
   <meta name="theme-color" content="#0d1117">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -33,7 +33,7 @@
     header {
       background: #161b22;
       border-bottom: 1px solid #30363d;
-      padding: 8px 12px;
+      padding: 7px 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -80,11 +80,11 @@
     }
 
     .price-flash {
-      animation: flash-anim 0.4s ease-out;
+      animation: flash-anim 0.35s ease-out;
     }
 
     @keyframes flash-anim {
-      0% { transform: scale(1.12); color: #58a6ff; }
+      0% { transform: scale(1.15); color: #58a6ff; }
       100% { transform: scale(1); }
     }
 
@@ -103,7 +103,7 @@
     .game-banner {
       background: #0d1117;
       border-bottom: 1px solid #21262d;
-      padding: 8px 12px;
+      padding: 7px 12px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -111,13 +111,13 @@
     }
 
     .game-title {
-      font-weight: 600;
+      font-weight: 700;
       font-size: 14px;
       color: #c9d1d9;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 70%;
+      max-width: 68%;
     }
 
     .btn-change-game {
@@ -127,18 +127,95 @@
       padding: 4px 10px;
       border-radius: 6px;
       font-size: 12px;
-      font-weight: 500;
+      font-weight: 600;
       cursor: pointer;
+    }
+
+    /* Market Tabs: Moneyline | Point Spread | Over/Under */
+    .market-nav {
+      display: flex;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      flex-shrink: 0;
+    }
+
+    .market-tab {
+      flex: 1;
+      padding: 9px 4px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #8b949e;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .market-tab.active {
+      color: #58a6ff;
+      border-bottom-color: #58a6ff;
+      background: rgba(56, 139, 253, 0.08);
+    }
+
+    /* Line Selector Bar for Spread and Total */
+    .line-selector-bar {
+      background: #090d13;
+      border-bottom: 1px solid #21262d;
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .line-selector-bar::-webkit-scrollbar { display: none; }
+
+    .line-selector-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #8b949e;
+      white-space: nowrap;
+    }
+
+    .line-pills-container {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .line-pill {
+      background: #161b22;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 4px 10px;
+      border-radius: 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.12s ease;
+    }
+
+    .line-pill.active {
+      background: #1f6feb;
+      border-color: #58a6ff;
+      color: #fff;
+      box-shadow: 0 0 8px rgba(56, 139, 253, 0.4);
     }
 
     /* Arm / Disarm Slider */
     .arm-bar {
-      background: #161b22;
+      background: #12171f;
       padding: 6px 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 1px solid #30363d;
+      border-bottom: 1px solid #21262d;
       flex-shrink: 0;
     }
 
@@ -151,8 +228,8 @@
     .switch {
       position: relative;
       display: inline-block;
-      width: 52px;
-      height: 28px;
+      width: 50px;
+      height: 26px;
     }
 
     .switch input {
@@ -167,14 +244,14 @@
       top: 0; left: 0; right: 0; bottom: 0;
       background-color: #30363d;
       transition: 0.2s;
-      border-radius: 28px;
+      border-radius: 26px;
     }
 
     .slider:before {
       position: absolute;
       content: "";
-      height: 22px;
-      width: 22px;
+      height: 20px;
+      width: 20px;
       left: 3px;
       bottom: 3px;
       background-color: #fff;
@@ -191,7 +268,7 @@
     }
 
     .arm-label {
-      font-weight: 700;
+      font-weight: 800;
       font-size: 13px;
       color: #8b949e;
     }
@@ -201,10 +278,10 @@
       text-shadow: 0 0 8px rgba(63, 185, 80, 0.4);
     }
 
-    /* Bet Size & Buffer Controls */
+    /* Config Strip: Bet Size, Price Mode (Ask vs Bid), and Buffer */
     .config-strip {
       background: #0d1117;
-      padding: 6px 12px;
+      padding: 6px 10px;
       display: flex;
       gap: 8px;
       align-items: center;
@@ -222,20 +299,23 @@
       border: 1px solid #30363d;
       border-radius: 8px;
       padding: 2px 4px;
-      gap: 4px;
+      gap: 3px;
+      white-space: nowrap;
     }
 
     .config-title {
-      font-size: 11px;
+      font-size: 10px;
+      font-weight: 700;
       color: #8b949e;
       padding: 0 4px;
+      letter-spacing: 0.5px;
     }
 
     .pill {
       background: transparent;
       border: none;
       color: #c9d1d9;
-      padding: 4px 8px;
+      padding: 4px 7px;
       border-radius: 6px;
       font-size: 12px;
       font-weight: 600;
@@ -247,13 +327,18 @@
       color: #fff;
     }
 
+    .pill-mode.active {
+      background: #238636;
+      color: #fff;
+    }
+
     /* Main Betting Arena: Two Enormous Buttons */
     .bet-arena {
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      padding: 12px;
+      gap: 10px;
+      padding: 10px;
       position: relative;
     }
 
@@ -278,20 +363,24 @@
       filter: brightness(1.2);
     }
 
-    /* Team A: Bold Cyan / Blue */
-    .btn-team-a {
+    /* Button Colors */
+    .btn-theme-blue {
       background: linear-gradient(145deg, #1f6feb 0%, #1158c7 100%);
       border-color: #388bfd;
     }
 
-    /* Team B: Bold Crimson / Orange */
-    .btn-team-b {
+    .btn-theme-red {
       background: linear-gradient(145deg, #da3633 0%, #a8201d 100%);
       border-color: #f85149;
     }
 
+    .btn-theme-green {
+      background: linear-gradient(145deg, #238636 0%, #196826 100%);
+      border-color: #3fb950;
+    }
+
     .team-btn.disarmed {
-      filter: grayscale(85%) opacity(0.5);
+      filter: grayscale(85%) opacity(0.45);
       cursor: not-allowed;
     }
 
@@ -302,53 +391,74 @@
       justify-content: center;
       pointer-events: none;
       text-align: center;
-      padding: 8px;
-    }
-
-    .team-name {
-      font-size: 26px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      line-height: 1.1;
-      margin-bottom: 6px;
-      text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+      padding: 6px;
+      width: 100%;
     }
 
     .team-action {
-      font-size: 13px;
+      font-size: 12px;
       text-transform: uppercase;
       letter-spacing: 1px;
-      font-weight: 700;
+      font-weight: 800;
       opacity: 0.9;
+      margin-bottom: 4px;
+    }
+
+    .team-name {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1.1;
       margin-bottom: 8px;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+      max-width: 90%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .price-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 6px 18px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
 
     .price-tag {
-      background: rgba(0, 0, 0, 0.4);
-      padding: 6px 18px;
-      border-radius: 20px;
-      font-size: 28px;
+      font-size: 30px;
       font-weight: 900;
       font-family: monospace;
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      letter-spacing: -0.5px;
+    }
+
+    .price-mode-badge {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.2);
+      text-transform: uppercase;
     }
 
     .price-sub {
       font-size: 11px;
-      font-family: sans-serif;
-      font-weight: normal;
-      opacity: 0.8;
+      font-family: monospace;
+      font-weight: 600;
+      opacity: 0.85;
       display: block;
-      margin-top: 2px;
+      margin-top: 6px;
     }
 
-    /* Flash Overlay for instant feedback */
+    /* Flash Overlay */
     #feedbackOverlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
       pointer-events: none;
       opacity: 0;
-      transition: opacity 0.15s ease-out;
+      transition: opacity 0.12s ease-out;
       z-index: 999;
     }
 
@@ -368,11 +478,11 @@
     footer {
       background: #161b22;
       border-top: 2px solid #30363d;
-      padding: 10px 12px;
+      padding: 8px 12px;
       font-size: 13px;
       flex-shrink: 0;
-      min-height: 140px;
-      max-height: 180px;
+      min-height: 125px;
+      max-height: 155px;
       display: flex;
       flex-direction: column;
       box-shadow: 0 -4px 12px rgba(0,0,0,0.3);
@@ -382,7 +492,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       font-size: 11px;
       font-weight: 700;
       color: #8b949e;
@@ -395,25 +505,24 @@
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 5px;
     }
 
     .log-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 8px 12px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 13px;
+      padding: 6px 10px;
+      font-size: 12px;
       font-weight: 600;
-      border-radius: 8px;
+      border-radius: 6px;
       background: #0d1117;
       border: 1px solid #30363d;
       animation: log-slide-in 0.2s ease-out;
     }
 
     @keyframes log-slide-in {
-      0% { transform: translateY(-8px); opacity: 0; }
+      0% { transform: translateY(-6px); opacity: 0; }
       100% { transform: translateY(0); opacity: 1; }
     }
 
@@ -436,7 +545,7 @@
 
     .log-badge-latency {
       font-family: monospace;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       color: #7ee787;
       background: rgba(46, 160, 67, 0.15);
@@ -450,11 +559,11 @@
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.85);
-      backdrop-filter: blur(4px);
-      z-index: 1000;
+      background: rgba(0, 0, 0, 0.8);
       display: none;
-      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
       padding: 16px;
     }
 
@@ -466,9 +575,11 @@
       background: #161b22;
       border: 1px solid #30363d;
       border-radius: 12px;
+      width: 100%;
+      max-width: 500px;
+      max-height: 80vh;
       display: flex;
       flex-direction: column;
-      max-height: 90vh;
       overflow: hidden;
     }
 
@@ -481,32 +592,32 @@
     }
 
     .modal-title {
+      font-size: 15px;
       font-weight: 700;
-      font-size: 16px;
     }
 
     .modal-close {
       background: transparent;
       border: none;
       color: #8b949e;
-      font-size: 22px;
+      font-size: 20px;
       cursor: pointer;
     }
 
     .search-input {
       background: #0d1117;
-      border: 1px solid #30363d;
-      color: #c9d1d9;
-      padding: 10px 14px;
-      margin: 12px;
-      border-radius: 8px;
+      border: none;
+      border-bottom: 1px solid #30363d;
+      padding: 12px 16px;
+      color: #f0f6fc;
       font-size: 14px;
       outline: none;
     }
 
     .game-list {
+      flex: 1;
       overflow-y: auto;
-      padding: 0 12px 12px 12px;
+      padding: 8px;
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -516,7 +627,7 @@
       background: #21262d;
       border: 1px solid #30363d;
       border-radius: 8px;
-      padding: 10px;
+      padding: 10px 14px;
       cursor: pointer;
     }
 
@@ -558,6 +669,19 @@
     <button class="btn-change-game" id="btnOpenModal">Select Game</button>
   </div>
 
+  <!-- Market Tabs: Moneyline / Spread / Over-Under -->
+  <nav class="market-nav">
+    <button class="market-tab active" data-market="moneyline" id="tabMoneyline">MONEYLINE</button>
+    <button class="market-tab" data-market="spread" id="tabSpread">SPREAD</button>
+    <button class="market-tab" data-market="total" id="tabTotal">OVER / UNDER</button>
+  </nav>
+
+  <!-- Line Selector Bar (Active for Spread and Total) -->
+  <div class="line-selector-bar" id="lineSelectorBar" style="display: none;">
+    <span class="line-selector-label" id="lineSelectorLabel">LINES:</span>
+    <div class="line-pills-container" id="linePillsContainer"></div>
+  </div>
+
   <!-- Arm / Disarm Safety Bar -->
   <div class="arm-bar">
     <div class="arm-toggle">
@@ -582,33 +706,46 @@
     </div>
 
     <div class="config-group">
-      <span class="config-title">SLIPPAGE:</span>
+      <span class="config-title">TARGET:</span>
+      <button class="pill pill-mode active" data-pmode="ask" id="modeAsk">ASK (Instant)</button>
+      <button class="pill pill-mode" data-pmode="bid" id="modeBid">BID (Maker)</button>
+    </div>
+
+    <div class="config-group">
+      <span class="config-title">BUFFER:</span>
+      <button class="pill active" data-buf="0.00">+0¢ (Exact)</button>
       <button class="pill" data-buf="0.01">+1¢</button>
-      <button class="pill active" data-buf="0.03">+3¢</button>
+      <button class="pill" data-buf="0.02">+2¢</button>
+      <button class="pill" data-buf="0.03">+3¢</button>
       <button class="pill" data-buf="0.05">+5¢</button>
-      <button class="pill" data-buf="0.10">+10¢</button>
     </div>
   </div>
 
   <!-- 1-Tap FastBet Arena -->
   <main class="bet-arena">
-    <!-- Team A Button -->
-    <button class="team-btn btn-team-a disarmed" id="btnTeamA">
+    <!-- Action Button A -->
+    <button class="team-btn btn-theme-blue disarmed" id="btnSideA">
       <div class="btn-content">
-        <div class="team-action">TAP TO BET WINNER</div>
-        <div class="team-name" id="teamAName">Team A</div>
-        <div class="price-tag" id="teamAPrice">--¢</div>
-        <span class="price-sub" id="teamASub">Ask: -- | Bid: --</span>
+        <div class="team-action" id="sideAAction">TAP TO BET WINNER</div>
+        <div class="team-name" id="sideAName">Team A</div>
+        <div class="price-box">
+          <div class="price-tag" id="sideAPrice">--¢</div>
+          <span class="price-mode-badge" id="sideABadge">ASK</span>
+        </div>
+        <span class="price-sub" id="sideASub">Ask: -- | Bid: --</span>
       </div>
     </button>
 
-    <!-- Team B Button -->
-    <button class="team-btn btn-team-b disarmed" id="btnTeamB">
+    <!-- Action Button B -->
+    <button class="team-btn btn-theme-red disarmed" id="btnSideB">
       <div class="btn-content">
-        <div class="team-action">TAP TO BET WINNER</div>
-        <div class="team-name" id="teamBName">Team B</div>
-        <div class="price-tag" id="teamBPrice">--¢</div>
-        <span class="price-sub" id="teamBSub">Ask: -- | Bid: --</span>
+        <div class="team-action" id="sideBAction">TAP TO BET WINNER</div>
+        <div class="team-name" id="sideBName">Team B</div>
+        <div class="price-box">
+          <div class="price-tag" id="sideBPrice">--¢</div>
+          <span class="price-mode-badge" id="sideBBadge">ASK</span>
+        </div>
+        <span class="price-sub" id="sideBSub">Ask: -- | Bid: --</span>
       </div>
     </button>
   </main>
@@ -620,7 +757,7 @@
       <span style="font-size: 11px; color: #3fb950; font-weight: 700;">● LIVE FILLS</span>
     </div>
     <div id="logContainer">
-      <div style="color: #8b949e; text-align: center; padding: 18px 0; font-size: 13px;">Ready for live market actions...</div>
+      <div style="color: #8b949e; text-align: center; padding: 16px 0; font-size: 13px;">Ready for live market actions...</div>
     </div>
   </footer>
 
@@ -639,27 +776,45 @@
   </div>
 
   <script>
-    // State
+    // App State
     let isArmed = false;
     let currentBetAmount = 1.0;
-    let currentBuffer = 0.03;
+    let currentBuffer = 0.00;      // Default exact price (+0¢ buffer)
+    let currentPriceMode = 'ask';   // 'ask' (taker/instant) or 'bid' (maker/resting)
+    let activeMarketType = 'moneyline'; // 'moneyline', 'spread', 'total'
+    let activeSpreadIdx = 0;
+    let activeTotalIdx = 0;
+    let activeEvent = null;
+
     let ws = null;
     let pingInterval = null;
     let lastPingTime = 0;
-    let activeEvent = null;
 
     // DOM Elements
     const armSwitch = document.getElementById('armSwitch');
     const armStatusLabel = document.getElementById('armStatusLabel');
     const armedHelp = document.getElementById('armedHelp');
-    const btnTeamA = document.getElementById('btnTeamA');
-    const btnTeamB = document.getElementById('btnTeamB');
-    const teamAName = document.getElementById('teamAName');
-    const teamBName = document.getElementById('teamBName');
-    const teamAPrice = document.getElementById('teamAPrice');
-    const teamBPrice = document.getElementById('teamBPrice');
-    const teamASub = document.getElementById('teamASub');
-    const teamBSub = document.getElementById('teamBSub');
+
+    const tabMoneyline = document.getElementById('tabMoneyline');
+    const tabSpread = document.getElementById('tabSpread');
+    const tabTotal = document.getElementById('tabTotal');
+    const lineSelectorBar = document.getElementById('lineSelectorBar');
+    const lineSelectorLabel = document.getElementById('lineSelectorLabel');
+    const linePillsContainer = document.getElementById('linePillsContainer');
+
+    const btnSideA = document.getElementById('btnSideA');
+    const btnSideB = document.getElementById('btnSideB');
+    const sideAAction = document.getElementById('sideAAction');
+    const sideBAction = document.getElementById('sideBAction');
+    const sideAName = document.getElementById('sideAName');
+    const sideBName = document.getElementById('sideBName');
+    const sideAPrice = document.getElementById('sideAPrice');
+    const sideBPrice = document.getElementById('sideBPrice');
+    const sideABadge = document.getElementById('sideABadge');
+    const sideBBadge = document.getElementById('sideBBadge');
+    const sideASub = document.getElementById('sideASub');
+    const sideBSub = document.getElementById('sideBSub');
+
     const activeGameTitle = document.getElementById('activeGameTitle');
     const pingDisplay = document.getElementById('pingDisplay');
     const connStatus = document.getElementById('connStatus');
@@ -685,7 +840,7 @@
       feedbackOverlay.className = type === 'success' ? 'flash-success' : 'flash-error';
       setTimeout(() => {
         feedbackOverlay.className = '';
-      }, 350);
+      }, 300);
     }
 
     // Arming Toggle
@@ -695,20 +850,31 @@
         armStatusLabel.textContent = 'ARMED';
         armStatusLabel.className = 'arm-label armed';
         armedHelp.textContent = '⚡ 1-TAP INSTANT EXECUTION ACTIVE';
-        btnTeamA.classList.remove('disarmed');
-        btnTeamB.classList.remove('disarmed');
+        btnSideA.classList.remove('disarmed');
+        btnSideB.classList.remove('disarmed');
         vibrate([30, 30]);
       } else {
         armStatusLabel.textContent = 'DISARMED';
         armStatusLabel.className = 'arm-label';
         armedHelp.textContent = 'Arm to activate 1-tap bets';
-        btnTeamA.classList.add('disarmed');
-        btnTeamB.classList.add('disarmed');
+        btnSideA.classList.add('disarmed');
+        btnSideB.classList.add('disarmed');
         vibrate(30);
       }
     });
 
-    // Pills: Bet Size & Buffer
+    // Market Navigation Tabs
+    [tabMoneyline, tabSpread, tabTotal].forEach(tab => {
+      tab.addEventListener('click', () => {
+        [tabMoneyline, tabSpread, tabTotal].forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        activeMarketType = tab.getAttribute('data-market');
+        vibrate(20);
+        renderActiveMarket();
+      });
+    });
+
+    // Pills: Bet Size
     document.querySelectorAll('[data-bet]').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('[data-bet]').forEach(b => b.classList.remove('active'));
@@ -718,45 +884,232 @@
       });
     });
 
+    // Pills: Price Target Mode (Ask vs Bid)
+    document.querySelectorAll('[data-pmode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-pmode]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentPriceMode = btn.getAttribute('data-pmode');
+        vibrate(20);
+        renderActiveMarket();
+      });
+    });
+
+    // Pills: Slippage Buffer
     document.querySelectorAll('[data-buf]').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('[data-buf]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentBuffer = parseFloat(btn.getAttribute('data-buf'));
         vibrate(20);
+        renderActiveMarket();
       });
     });
 
-    // Order Execution: Ultra Fast Click Handlers with Debounce Lock
+    // Render Market Display (Buttons & Lines)
+    function renderActiveMarket() {
+      if (!activeEvent) return;
+
+      sideABadge.textContent = currentPriceMode.toUpperCase();
+      sideBBadge.textContent = currentPriceMode.toUpperCase();
+
+      if (activeMarketType === 'moneyline') {
+        lineSelectorBar.style.display = 'none';
+
+        // Styling
+        btnSideA.className = `team-btn btn-theme-blue ${isArmed ? '' : 'disarmed'}`;
+        btnSideB.className = `team-btn btn-theme-red ${isArmed ? '' : 'disarmed'}`;
+        sideAAction.textContent = 'BET TO WIN (MONEYLINE)';
+        sideBAction.textContent = 'BET TO WIN (MONEYLINE)';
+
+        const teamA = activeEvent.team_a;
+        const teamB = activeEvent.team_b;
+
+        if (teamA) {
+          sideAName.textContent = teamA.name || 'Team A';
+          const askA = teamA.yes_ask !== null ? Math.round(teamA.yes_ask * 100) : (teamA.last_price ? Math.round(teamA.last_price * 100) : null);
+          const bidA = teamA.yes_bid !== null ? Math.round(teamA.yes_bid * 100) : null;
+          const targetA = currentPriceMode === 'bid' ? (bidA !== null ? bidA : askA) : (askA !== null ? askA : bidA);
+          sideAPrice.textContent = targetA !== null ? `${targetA}¢` : '--¢';
+          sideASub.textContent = `Ask: ${askA ?? '--'}¢ | Bid: ${bidA ?? '--'}¢`;
+        }
+
+        if (teamB) {
+          sideBName.textContent = teamB.name || 'Team B';
+          const askB = teamB.yes_ask !== null ? Math.round(teamB.yes_ask * 100) : (teamB.last_price ? Math.round(teamB.last_price * 100) : null);
+          const bidB = teamB.yes_bid !== null ? Math.round(teamB.yes_bid * 100) : null;
+          const targetB = currentPriceMode === 'bid' ? (bidB !== null ? bidB : askB) : (askB !== null ? askB : bidB);
+          sideBPrice.textContent = targetB !== null ? `${targetB}¢` : '--¢';
+          sideBSub.textContent = `Ask: ${askB ?? '--'}¢ | Bid: ${bidB ?? '--'}¢`;
+        }
+      }
+      else if (activeMarketType === 'spread') {
+        const spreadLines = activeEvent.spread || [];
+        if (spreadLines.length === 0) {
+          lineSelectorBar.style.display = 'flex';
+          lineSelectorLabel.textContent = 'SPREAD:';
+          linePillsContainer.innerHTML = '<span style="font-size: 11px; color: #8b949e;">No spread lines open for this game</span>';
+          sideAName.textContent = 'No Spread';
+          sideBName.textContent = 'No Spread';
+          sideAPrice.textContent = '--¢';
+          sideBPrice.textContent = '--¢';
+          return;
+        }
+
+        lineSelectorBar.style.display = 'flex';
+        lineSelectorLabel.textContent = 'SPREAD:';
+        linePillsContainer.innerHTML = '';
+
+        if (activeSpreadIdx >= spreadLines.length) activeSpreadIdx = 0;
+
+        spreadLines.forEach((ln, idx) => {
+          const pill = document.createElement('button');
+          pill.className = `line-pill ${idx === activeSpreadIdx ? 'active' : ''}`;
+          const ask = ln.fav_ask !== null ? Math.round(ln.fav_ask * 100) : '--';
+          pill.textContent = `${ln.fav_label} (${ask}¢)`;
+          pill.addEventListener('click', () => {
+            activeSpreadIdx = idx;
+            vibrate(20);
+            renderActiveMarket();
+          });
+          linePillsContainer.appendChild(pill);
+        });
+
+        const activeLine = spreadLines[activeSpreadIdx];
+        btnSideA.className = `team-btn btn-theme-blue ${isArmed ? '' : 'disarmed'}`;
+        btnSideB.className = `team-btn btn-theme-red ${isArmed ? '' : 'disarmed'}`;
+        sideAAction.textContent = 'BET SPREAD COVER';
+        sideBAction.textContent = 'BET SPREAD COVER';
+
+        if (activeLine) {
+          sideAName.textContent = activeLine.fav_label;
+          sideBName.textContent = activeLine.dog_label;
+
+          const favAsk = activeLine.fav_ask !== null ? Math.round(activeLine.fav_ask * 100) : null;
+          const favBid = activeLine.fav_bid !== null ? Math.round(activeLine.fav_bid * 100) : null;
+          const targetFav = currentPriceMode === 'bid' ? (favBid !== null ? favBid : favAsk) : (favAsk !== null ? favAsk : favBid);
+          sideAPrice.textContent = targetFav !== null ? `${targetFav}¢` : '--¢';
+          sideASub.textContent = `Ask: ${favAsk ?? '--'}¢ | Bid: ${favBid ?? '--'}¢`;
+
+          const dogAsk = activeLine.dog_ask !== null ? Math.round(activeLine.dog_ask * 100) : null;
+          const dogBid = activeLine.dog_bid !== null ? Math.round(activeLine.dog_bid * 100) : null;
+          const targetDog = currentPriceMode === 'bid' ? (dogBid !== null ? dogBid : dogAsk) : (dogAsk !== null ? dogAsk : dogBid);
+          sideBPrice.textContent = targetDog !== null ? `${targetDog}¢` : '--¢';
+          sideBSub.textContent = `Ask: ${dogAsk ?? '--'}¢ | Bid: ${dogBid ?? '--'}¢`;
+        }
+      }
+      else if (activeMarketType === 'total') {
+        const totalLines = activeEvent.total || [];
+        if (totalLines.length === 0) {
+          lineSelectorBar.style.display = 'flex';
+          lineSelectorLabel.textContent = 'TOTALS:';
+          linePillsContainer.innerHTML = '<span style="font-size: 11px; color: #8b949e;">No total lines open for this game</span>';
+          sideAName.textContent = 'No Total';
+          sideBName.textContent = 'No Total';
+          sideAPrice.textContent = '--¢';
+          sideBPrice.textContent = '--¢';
+          return;
+        }
+
+        lineSelectorBar.style.display = 'flex';
+        lineSelectorLabel.textContent = 'TOTALS:';
+        linePillsContainer.innerHTML = '';
+
+        if (activeTotalIdx >= totalLines.length) activeTotalIdx = 0;
+
+        totalLines.forEach((ln, idx) => {
+          const pill = document.createElement('button');
+          pill.className = `line-pill ${idx === activeTotalIdx ? 'active' : ''}`;
+          const ask = ln.over_ask !== null ? Math.round(ln.over_ask * 100) : '--';
+          pill.textContent = `${ln.strike} (${ask}¢)`;
+          pill.addEventListener('click', () => {
+            activeTotalIdx = idx;
+            vibrate(20);
+            renderActiveMarket();
+          });
+          linePillsContainer.appendChild(pill);
+        });
+
+        const activeLine = totalLines[activeTotalIdx];
+        btnSideA.className = `team-btn btn-theme-green ${isArmed ? '' : 'disarmed'}`;
+        btnSideB.className = `team-btn btn-theme-red ${isArmed ? '' : 'disarmed'}`;
+        sideAAction.textContent = 'BET GAME TOTAL';
+        sideBAction.textContent = 'BET GAME TOTAL';
+
+        if (activeLine) {
+          sideAName.textContent = activeLine.over_label;
+          sideBName.textContent = activeLine.under_label;
+
+          const overAsk = activeLine.over_ask !== null ? Math.round(activeLine.over_ask * 100) : null;
+          const overBid = activeLine.over_bid !== null ? Math.round(activeLine.over_bid * 100) : null;
+          const targetOver = currentPriceMode === 'bid' ? (overBid !== null ? overBid : overAsk) : (overAsk !== null ? overAsk : overBid);
+          sideAPrice.textContent = targetOver !== null ? `${targetOver}¢` : '--¢';
+          sideASub.textContent = `Ask: ${overAsk ?? '--'}¢ | Bid: ${overBid ?? '--'}¢`;
+
+          const underAsk = activeLine.under_ask !== null ? Math.round(activeLine.under_ask * 100) : null;
+          const underBid = activeLine.under_bid !== null ? Math.round(activeLine.under_bid * 100) : null;
+          const targetUnder = currentPriceMode === 'bid' ? (underBid !== null ? underBid : underAsk) : (underAsk !== null ? underAsk : underBid);
+          sideBPrice.textContent = targetUnder !== null ? `${targetUnder}¢` : '--¢';
+          sideBSub.textContent = `Ask: ${underAsk ?? '--'}¢ | Bid: ${underBid ?? '--'}¢`;
+        }
+      }
+    }
+
+    // FastBet Execution: Touch handlers with debounce lockout
     let isSubmitting = false;
     let lastBetTime = 0;
     const seenOrderIds = new Set();
 
-    function executeBet(teamSide) {
+    function executeBet(sideChoice) {
       const now = performance.now();
-      // Lockout window: prevent duplicate events (touchstart + synthetic click) or rapid double-taps
-      if (now - lastBetTime < 400 || isSubmitting) {
+      if (now - lastBetTime < 380 || isSubmitting) {
         return;
       }
       lastBetTime = now;
       isSubmitting = true;
-      setTimeout(() => { isSubmitting = false; }, 350);
+      setTimeout(() => { isSubmitting = false; }, 320);
 
       if (!isArmed) {
-        vibrate(100);
+        vibrate(120);
         armedHelp.textContent = '⚠️ SWITCH TO ARMED FIRST!';
         setTimeout(() => { armedHelp.textContent = 'Arm to activate 1-tap bets'; }, 1500);
         return;
       }
 
-      vibrate(40); // Immediate tactile click feedback
+      vibrate(40); // Instant tactile tap feedback
       const clientSendTime = performance.now();
+
+      let lineTicker = null;
+      let outcomeSide = 'yes';
+      let label = '';
+
+      if (activeMarketType === 'moneyline') {
+        const teamInfo = sideChoice === 'A' ? activeEvent?.team_a : activeEvent?.team_b;
+        lineTicker = teamInfo?.ticker;
+        outcomeSide = 'yes';
+        label = teamInfo?.name || `Team ${sideChoice}`;
+      } else if (activeMarketType === 'spread') {
+        const line = activeEvent?.spread?.[activeSpreadIdx];
+        lineTicker = line?.ticker;
+        outcomeSide = sideChoice === 'A' ? 'yes' : 'no';
+        label = sideChoice === 'A' ? line?.fav_label : line?.dog_label;
+      } else if (activeMarketType === 'total') {
+        const line = activeEvent?.total?.[activeTotalIdx];
+        lineTicker = line?.ticker;
+        outcomeSide = sideChoice === 'A' ? 'yes' : 'no';
+        label = sideChoice === 'A' ? line?.over_label : line?.under_label;
+      }
 
       const payload = {
         action: "bet",
-        team: teamSide,
+        team: sideChoice,
+        market_type: activeMarketType,
+        line_ticker: lineTicker,
+        side: outcomeSide,
         amount: currentBetAmount,
         buffer: currentBuffer,
+        price_mode: currentPriceMode,
+        label: label,
         client_send_time: clientSendTime
       };
 
@@ -775,14 +1128,14 @@
       }
     }
 
-    function attachTouchHandlers(btn, teamSide) {
+    function attachTouchHandlers(btn, sideChoice) {
       let touchActive = false;
 
       btn.addEventListener('touchstart', (e) => {
         touchActive = true;
         btn.classList.add('btn-pressed');
         e.preventDefault();
-        executeBet(teamSide);
+        executeBet(sideChoice);
       }, { passive: false });
 
       btn.addEventListener('touchend', (e) => {
@@ -796,22 +1149,20 @@
         touchActive = false;
       });
 
-      // Desktop click handler (strictly ignored if touch was used)
       btn.addEventListener('click', (e) => {
         if (touchActive) {
           e.preventDefault();
           return;
         }
-        executeBet(teamSide);
+        executeBet(sideChoice);
       });
     }
 
-    attachTouchHandlers(btnTeamA, 'A');
-    attachTouchHandlers(btnTeamB, 'B');
+    attachTouchHandlers(btnSideA, 'A');
+    attachTouchHandlers(btnSideB, 'B');
 
     function handleOrderResult(order) {
       if (!order) return;
-      // Deduplicate order notifications by order_id
       const oid = order.order_id;
       if (oid && seenOrderIds.has(oid)) {
         return;
@@ -825,16 +1176,17 @@
       }
 
       if (order.success) {
-        vibrate([60, 40, 60]); // Success vibration
+        vibrate([60, 40, 60]);
         triggerFeedback('success');
         const phoneToExchangeRtt = order.client_send_time ? Math.round(performance.now() - order.client_send_time) : null;
         const latencyStr = phoneToExchangeRtt ? `${phoneToExchangeRtt}ms` : `${order.roundtrip_ms || order.engine_latency_ms}ms`;
-        const priceCents = Math.round(order.price * 100);
-        const costStr = `$${order.total_cost || (order.price * order.count).toFixed(2)}`;
-        const summary = `BOUGHT ${order.team_name || order.ticker} (${order.count}x @ ${priceCents}¢ = ${costStr})`;
+        const priceCents = Math.round((order.display_price || order.price) * 100);
+        const costStr = `$${(order.total_cost || ((order.display_price || order.price) * order.count)).toFixed(2)}`;
+        const name = order.bet_label || order.team_name || order.ticker;
+        const summary = `FILLED: ${name} (${order.count}x @ ${priceCents}¢ = ${costStr})`;
         logMessage(summary, true, latencyStr);
       } else {
-        vibrate([200, 100, 200]); // Error vibration
+        vibrate([200, 100, 200]);
         triggerFeedback('error');
         logMessage(`REJECTED: ${order.error || 'Failed'}`, false);
       }
@@ -871,13 +1223,12 @@
         el.appendChild(latSpan);
       }
 
-      // Clear initial placeholder if still present
       if (logContainer.firstElementChild && logContainer.firstElementChild.textContent.includes('Ready for live')) {
         logContainer.innerHTML = '';
       }
 
       logContainer.prepend(el);
-      while (logContainer.children.length > 20) {
+      while (logContainer.children.length > 25) {
         logContainer.removeChild(logContainer.lastChild);
       }
     }
@@ -905,7 +1256,13 @@
           } else if (data.type === 'init' || data.type === 'game_selected') {
             applyInitialState(data);
           } else if (data.type === 'quote_update') {
-            updateQuotes(data.team_a, data.team_b);
+            if (activeEvent) {
+              if (data.team_a) activeEvent.team_a = data.team_a;
+              if (data.team_b) activeEvent.team_b = data.team_b;
+              if (data.spread) activeEvent.spread = data.spread;
+              if (data.total) activeEvent.total = data.total;
+              renderActiveMarket();
+            }
           } else if (data.type === 'order_executed') {
             handleOrderResult(data.order);
           }
@@ -951,34 +1308,9 @@
       if (state.active_event) {
         activeEvent = state.active_event;
         activeGameTitle.textContent = activeEvent.title || 'Live Game';
-        teamAName.textContent = activeEvent.team_a?.name || 'Team A';
-        teamBName.textContent = activeEvent.team_b?.name || 'Team B';
-        updateQuotes(activeEvent.team_a, activeEvent.team_b);
-      }
-    }
-
-    function updateQuotes(teamA, teamB) {
-      if (teamA) {
-        const askA = teamA.yes_ask !== null ? Math.round(teamA.yes_ask * 100) : (teamA.last_price ? Math.round(teamA.last_price * 100) : '--');
-        const bidA = teamA.yes_bid !== null ? Math.round(teamA.yes_bid * 100) : '--';
-        const newTextA = `${askA}¢`;
-        if (teamAPrice.textContent !== newTextA && teamAPrice.textContent !== '--¢') {
-          teamAPrice.classList.add('price-flash');
-          setTimeout(() => teamAPrice.classList.remove('price-flash'), 400);
-        }
-        teamAPrice.textContent = newTextA;
-        teamASub.textContent = `Ask: ${askA}¢ | Bid: ${bidA}¢`;
-      }
-      if (teamB) {
-        const askB = teamB.yes_ask !== null ? Math.round(teamB.yes_ask * 100) : (teamB.last_price ? Math.round(teamB.last_price * 100) : '--');
-        const bidB = teamB.yes_bid !== null ? Math.round(teamB.yes_bid * 100) : '--';
-        const newTextB = `${askB}¢`;
-        if (teamBPrice.textContent !== newTextB && teamBPrice.textContent !== '--¢') {
-          teamBPrice.classList.add('price-flash');
-          setTimeout(() => teamBPrice.classList.remove('price-flash'), 400);
-        }
-        teamBPrice.textContent = newTextB;
-        teamBSub.textContent = `Ask: ${askB}¢ | Bid: ${bidB}¢`;
+        if (activeEvent.active_spread_idx !== undefined) activeSpreadIdx = activeEvent.active_spread_idx;
+        if (activeEvent.active_total_idx !== undefined) activeTotalIdx = activeEvent.active_total_idx;
+        renderActiveMarket();
       }
     }
 
@@ -1037,16 +1369,16 @@
           body: JSON.stringify(game)
         });
         const data = await res.json();
-        if (data.success) {
-          applyInitialState({ active_event: game });
-          logMessage(`Selected game: ${game.title}`, true);
+        if (data.success && data.active_event) {
+          applyInitialState({ active_event: data.active_event });
+          logMessage(`Loaded game: ${data.active_event.title}`, true);
         }
       } catch(e) {
         logMessage(`Failed to select game: ${e.message}`, false);
       }
     }
 
-    // Start WebSocket
+    // Connect WebSocket on load
     connectWebSocket();
   </script>
 </body>
