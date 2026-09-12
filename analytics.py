@@ -19,7 +19,7 @@ def get_db_connection() -> sqlite3.Connection:
 
 
 def init_db():
-    """Initializes SQLite tables for sessions and trades."""
+    """Initializes SQLite tables for sessions and trades with automatic migrations."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -31,34 +31,71 @@ def init_db():
                 start_time REAL NOT NULL,
                 end_time REAL,
                 is_active INTEGER NOT NULL DEFAULT 1,
+                starting_balance REAL DEFAULT 0.0,
+                ending_balance REAL DEFAULT 0.0,
                 notes TEXT
             )
         """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS trades (
-                order_id TEXT PRIMARY KEY,
-                session_id TEXT,
-                timestamp REAL NOT NULL,
-                created_at TEXT NOT NULL,
-                game_title TEXT,
-                event_ticker TEXT,
-                market_type TEXT,
-                market_ticker TEXT,
-                side TEXT,
-                label TEXT,
-                order_type TEXT,
-                price REAL NOT NULL,
-                count INTEGER NOT NULL,
-                total_cost REAL NOT NULL,
-                status TEXT NOT NULL DEFAULT 'open',
-                payout REAL DEFAULT 0.0,
-                pnl REAL DEFAULT 0.0,
-                latency_ms REAL,
-                source TEXT DEFAULT 'fastbet',
-                FOREIGN KEY (session_id) REFERENCES sessions(id)
-            )
-        """)
-        # Ensure market_type is properly set for historical rows
+
+        # Migration check for sessions columns
+        s_cols = [r[1] for r in cursor.execute("PRAGMA table_info(sessions)").fetchall()]
+        if "starting_balance" not in s_cols:
+            cursor.execute("ALTER TABLE sessions ADD COLUMN starting_balance REAL DEFAULT 0.0")
+        if "ending_balance" not in s_cols:
+            cursor.execute("ALTER TABLE sessions ADD COLUMN ending_balance REAL DEFAULT 0.0")
+
+        # Migration check for trades table schema
+        t_cols = [r[1] for r in cursor.execute("PRAGMA table_info(trades)").fetchall()]
+        if "trade_id" not in t_cols:
+            # Upgrade trades table to use trade_id primary key and float count
+            cursor.execute("DROP TABLE IF EXISTS trades")
+            cursor.execute("""
+                CREATE TABLE trades (
+                    trade_id TEXT PRIMARY KEY,
+                    order_id TEXT,
+                    session_id TEXT,
+                    timestamp REAL NOT NULL,
+                    created_at TEXT NOT NULL,
+                    game_title TEXT,
+                    event_ticker TEXT,
+                    market_type TEXT,
+                    market_ticker TEXT,
+                    side TEXT,
+                    label TEXT,
+                    order_type TEXT,
+                    price REAL NOT NULL,
+                    count REAL NOT NULL,
+                    total_cost REAL NOT NULL,
+                    fee_cost REAL DEFAULT 0.0,
+                    status TEXT NOT NULL DEFAULT 'open',
+                    payout REAL DEFAULT 0.0,
+                    pnl REAL DEFAULT 0.0,
+                    latency_ms REAL,
+                    source TEXT DEFAULT 'fastbet',
+                    FOREIGN KEY (session_id) REFERENCES sessions(id)
+                )
+            """)
+        else:
+            if "fee_cost" not in t_cols:
+                cursor.execute("ALTER TABLE trades ADD COLUMN fee_cost REAL DEFAULT 0.0")
+
+        # Ensure Session 1: Rutgers vs Boston College exists
+        s1 = cursor.execute("SELECT id FROM sessions WHERE id = 'sess_rutgers_bc_20260911'").fetchone()
+        if not s1:
+            cursor.execute("""
+                INSERT INTO sessions (id, name, game_title, event_ticker, start_time, end_time, is_active, starting_balance, ending_balance, notes)
+                VALUES (?, ?, ?, ?, ?, ?, 0, 225.00, 283.03, ?)
+            """, (
+                'sess_rutgers_bc_20260911',
+                'Session 1: Rutgers vs Boston College',
+                'Rutgers vs Boston College',
+                'KXNCAAFGAME-26SEP11RUTGBC',
+                1789172991.0,
+                1789183718.0,
+                'First live betting session. Starting bankroll: $225.00 -> Ending: $283.03 (+25.8% return).'
+            ))
+
+        # Ensure market_type is properly set for any historical rows
         cursor.execute("UPDATE trades SET market_type = 'spread' WHERE market_ticker LIKE '%SPREAD%' AND market_type != 'spread'")
         cursor.execute("UPDATE trades SET market_type = 'total' WHERE (market_ticker LIKE '%TOTAL%' OR market_ticker LIKE '%OVER%' OR market_ticker LIKE '%UNDER%') AND market_type != 'total'")
         conn.commit()
@@ -164,7 +201,8 @@ class AnalyticsManager:
 
         now = time.time()
         iso_time = datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M:%S")
-        order_id = str(order_result.get("order_id") or uuid.uuid4())
+        trade_id = str(order_result.get("trade_id") or order_result.get("fill_id") or order_result.get("order_id") or uuid.uuid4())
+        order_id = str(order_result.get("order_id") or trade_id)
 
         # Determine session
         if not session_id:
@@ -175,12 +213,13 @@ class AnalyticsManager:
             session_id = sess["id"]
 
         price = float(order_result.get("display_price", order_result.get("price", 0.50)))
-        count = int(order_result.get("count", 1))
+        count = float(order_result.get("count", 1))
         total_cost = float(order_result.get("total_cost", round(price * count, 2)))
         status = "resting" if order_result.get("status") == "resting" else "open"
         latency = float(order_result.get("roundtrip_ms") or order_result.get("engine_latency_ms") or 0.0)
 
         trade_data = {
+            "trade_id": trade_id,
             "order_id": order_id,
             "session_id": session_id,
             "timestamp": now,
@@ -195,6 +234,7 @@ class AnalyticsManager:
             "price": price,
             "count": count,
             "total_cost": total_cost,
+            "fee_cost": 0.0,
             "status": status,
             "payout": 0.0,
             "pnl": 0.0,
@@ -205,18 +245,18 @@ class AnalyticsManager:
         with get_db_connection() as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO trades 
-                   (order_id, session_id, timestamp, created_at, game_title, event_ticker,
+                   (trade_id, order_id, session_id, timestamp, created_at, game_title, event_ticker,
                     market_type, market_ticker, side, label, order_type, price, count,
-                    total_cost, status, payout, pnl, latency_ms, source)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    total_cost, fee_cost, status, payout, pnl, latency_ms, source)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    trade_data["order_id"], trade_data["session_id"], trade_data["timestamp"],
-                    trade_data["created_at"], trade_data["game_title"], trade_data["event_ticker"],
-                    trade_data["market_type"], trade_data["market_ticker"], trade_data["side"],
-                    trade_data["label"], trade_data["order_type"], trade_data["price"],
-                    trade_data["count"], trade_data["total_cost"], trade_data["status"],
-                    trade_data["payout"], trade_data["pnl"], trade_data["latency_ms"],
-                    trade_data["source"]
+                    trade_data["trade_id"], trade_data["order_id"], trade_data["session_id"],
+                    trade_data["timestamp"], trade_data["created_at"], trade_data["game_title"],
+                    trade_data["event_ticker"], trade_data["market_type"], trade_data["market_ticker"],
+                    trade_data["side"], trade_data["label"], trade_data["order_type"],
+                    trade_data["price"], trade_data["count"], trade_data["total_cost"],
+                    trade_data["fee_cost"], trade_data["status"], trade_data["payout"],
+                    trade_data["pnl"], trade_data["latency_ms"], trade_data["source"]
                 )
             )
             conn.commit()
@@ -226,7 +266,7 @@ class AnalyticsManager:
     @staticmethod
     def get_trades(
         session_id: Optional[str] = None,
-        limit: int = 200,
+        limit: int = 500,
         market_type: Optional[str] = None,
         status: Optional[str] = None
     ) -> List[Dict[str, Any]]:
@@ -242,8 +282,16 @@ class AnalyticsManager:
             params.append(market_type.lower())
 
         if status and status != "all":
-            query += " AND status = ?"
-            params.append(status.lower())
+            st_clean = status.lower()
+            if st_clean == "won":
+                query += " AND status = 'settled_won'"
+            elif st_clean == "lost":
+                query += " AND status = 'settled_lost'"
+            elif st_clean == "open":
+                query += " AND status IN ('open', 'resting')"
+            else:
+                query += " AND status = ?"
+                params.append(st_clean)
 
         query += " ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
@@ -274,7 +322,8 @@ class AnalyticsManager:
         win_rate = round((win_count / settled_count) * 100.0, 1) if settled_count > 0 else 0.0
         roi = round((net_pnl / total_wagered) * 100.0, 1) if total_wagered > 0 else 0.0
 
-        avg_price_cents = round(sum(t["price"] for t in trades) / total_bets * 100.0, 1) if total_bets > 0 else 0.0
+        total_contracts = sum(t["count"] for t in trades)
+        avg_price_cents = round(total_wagered / total_contracts * 100.0, 1) if total_contracts > 0 else 0.0
         latencies = [t["latency_ms"] for t in trades if t.get("latency_ms") and t["latency_ms"] > 0]
         avg_latency = round(sum(latencies) / len(latencies), 1) if latencies else 0.0
 
@@ -355,6 +404,8 @@ class AnalyticsManager:
             s["win_rate"] = win_rate
             s["start_formatted"] = datetime.fromtimestamp(s["start_time"]).strftime("%b %d, %I:%M %p")
             s["end_formatted"] = datetime.fromtimestamp(s["end_time"]).strftime("%b %d, %I:%M %p") if s.get("end_time") else "Active"
+            s["starting_balance"] = round(float(s.get("starting_balance") or 0.0), 2)
+            s["ending_balance"] = round(float(s.get("ending_balance") or 0.0), 2)
 
         return sessions
 
@@ -362,7 +413,8 @@ class AnalyticsManager:
     async def sync_with_kalshi(kalshi_client) -> Dict[str, Any]:
         """
         Reconciles local trades with live Kalshi fills & settlements.
-        Imports any missing fills and marks settled won/lost contracts with real payouts.
+        Imports all account fills, resolves settlements with exact P&L,
+        and links trades to their respective game sessions.
         """
         if kalshi_client.simulation_mode or not kalshi_client.auth.is_configured:
             return {"success": True, "message": "Simulation mode (no live account sync)", "synced_trades": 0}
@@ -383,7 +435,7 @@ class AnalyticsManager:
                     "settled_time": s.get("settled_time")
                 }
 
-        # 3. Update existing trades in DB
+        # 3. Update existing trades in DB if settlement newly known
         updated_count = 0
         with get_db_connection() as conn:
             open_trades = conn.execute(
@@ -396,89 +448,136 @@ class AnalyticsManager:
                     settlement = settled_map[m_ticker]
                     result = settlement["market_result"]  # 'yes' or 'no'
                     user_side = t["side"].lower()
+                    fee = float(t["fee_cost"] if "fee_cost" in t.keys() else 0.0)
 
                     if user_side == result:
                         status = "settled_won"
                         payout = round(t["count"] * 1.00, 2)
-                        pnl = round(payout - t["total_cost"], 2)
+                        pnl = round(payout - t["total_cost"] - fee, 2)
                     else:
                         status = "settled_lost"
                         payout = 0.0
-                        pnl = round(-t["total_cost"], 2)
+                        pnl = round(-t["total_cost"] - fee, 2)
 
                     conn.execute(
-                        "UPDATE trades SET status = ?, payout = ?, pnl = ? WHERE order_id = ?",
-                        (status, payout, pnl, t["order_id"])
+                        "UPDATE trades SET status = ?, payout = ?, pnl = ? WHERE trade_id = ?",
+                        (status, payout, pnl, t["trade_id"])
                     )
                     updated_count += 1
             conn.commit()
 
-        # 4. Fetch recent fills to import any trades placed outside FastBet or missed
-        fills = await kalshi_client.get_fills(limit=50)
+        # 4. Fetch recent fills to import trades placed on Kalshi
+        fills = await kalshi_client.get_fills(limit=100)
         imported_count = 0
         active_sess = AnalyticsManager.get_active_session()
         active_id = active_sess["id"] if active_sess else None
 
         with get_db_connection() as conn:
             for f in fills:
-                oid = str(f.get("order_id") or f.get("trade_id"))
-                existing = conn.execute("SELECT order_id FROM trades WHERE order_id = ?", (oid,)).fetchone()
-                if not existing:
-                    ticker = f.get("ticker", "")
-                    side = str(f.get("side", "yes")).lower()
-                    cnt = int(f.get("count", 1))
-                    price_cents = f.get("yes_price") if side == "yes" else f.get("no_price", 50)
-                    price = float(price_cents) / 100.0 if price_cents else 0.50
-                    cost = round(price * cnt, 2)
+                trade_id = str(f.get("trade_id") or f.get("fill_id") or f.get("order_id"))
+                order_id = str(f.get("order_id") or trade_id)
+                ticker = f.get("ticker") or f.get("market_ticker", "")
+                side = str(f.get("side") or f.get("outcome_side", "yes")).lower()
 
-                    # Infer market type from ticker
-                    ticker_upper = ticker.upper()
-                    if "SPREAD" in ticker_upper:
-                        mtype = "spread"
-                    elif "TOTAL" in ticker_upper or "OVER" in ticker_upper or "UNDER" in ticker_upper:
-                        mtype = "total"
-                    else:
-                        mtype = "moneyline"
+                cnt_raw = f.get("count_fp") or f.get("count") or 1.0
+                try:
+                    cnt = float(cnt_raw)
+                except Exception:
+                    cnt = 1.0
 
-                    # Parse execution timestamp
-                    created_raw = f.get("created_time")
-                    ts = time.time()
-                    if created_raw:
-                        try:
-                            clean_iso = str(created_raw).replace("Z", "+00:00")
-                            dt = datetime.fromisoformat(clean_iso)
-                            ts = dt.timestamp()
-                        except Exception:
-                            ts = time.time()
+                # Kalshi API v2 price keys
+                yes_dollars = f.get("yes_price_dollars")
+                no_dollars = f.get("no_price_dollars")
+                if yes_dollars is not None and side == "yes":
+                    price = float(yes_dollars)
+                elif no_dollars is not None and side == "no":
+                    price = float(no_dollars)
+                elif f.get("yes_price") is not None and side == "yes":
+                    price = float(f.get("yes_price")) / 100.0
+                elif f.get("no_price") is not None and side == "no":
+                    price = float(f.get("no_price")) / 100.0
+                else:
+                    price = 0.50
+
+                cost = round(cnt * price, 2)
+                fee = float(f.get("fee_cost") or 0.0)
+
+                # Parse execution timestamp
+                created_raw = f.get("created_time")
+                ts = float(f.get("ts") or 0.0)
+                if created_raw:
+                    try:
+                        clean_iso = str(created_raw).replace("Z", "+00:00")
+                        dt = datetime.fromisoformat(clean_iso)
+                        ts = dt.timestamp()
+                        created_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        created_str = datetime.fromtimestamp(ts if ts > 0 else time.time()).strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    ts = ts if ts > 0 else time.time()
                     created_str = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
 
-                    # Check if already settled
-                    if ticker in settled_map:
-                        res = settled_map[ticker]["market_result"]
-                        if side == res:
-                            st = "settled_won"
-                            po = round(cnt * 1.00, 2)
-                            pl = round(po - cost, 2)
-                        else:
-                            st = "settled_lost"
-                            po = 0.0
-                            pl = round(-cost, 2)
-                    else:
-                        st = "open"
-                        po = 0.0
-                        pl = 0.0
+                # Infer market type from ticker
+                ticker_upper = ticker.upper()
+                if "SPREAD" in ticker_upper:
+                    mtype = "spread"
+                elif "TOTAL" in ticker_upper or "OVER" in ticker_upper or "UNDER" in ticker_upper:
+                    mtype = "total"
+                else:
+                    mtype = "moneyline"
 
+                # Check if this trade is part of Session 1: Rutgers vs Boston College
+                if "RUTGBC" in ticker_upper:
+                    sess_id = "sess_rutgers_bc_20260911"
+                    g_title = "Rutgers vs Boston College"
+                    e_ticker = "KXNCAAFGAME-26SEP11RUTGBC"
+                else:
+                    sess_id = active_id
+                    g_title = "Kalshi Account Trade"
+                    e_ticker = ""
+
+                # Settlement status & P&L calculation
+                if ticker in settled_map:
+                    res = settled_map[ticker]["market_result"]
+                    if side == res:
+                        st = "settled_won"
+                        po = round(cnt * 1.00, 2)
+                        pl = round(po - cost - fee, 2)
+                    else:
+                        st = "settled_lost"
+                        po = 0.0
+                        pl = round(-cost - fee, 2)
+                else:
+                    st = "open"
+                    po = 0.0
+                    pl = 0.0
+
+                parts = ticker.split("-")
+                sub = parts[-1] if len(parts) > 1 else ticker
+                label = f"{sub} ({side.upper()})"
+                order_type = "taker" if f.get("is_taker") else "maker"
+
+                existing = conn.execute("SELECT trade_id FROM trades WHERE trade_id = ?", (trade_id,)).fetchone()
+                if not existing:
                     conn.execute(
                         """INSERT INTO trades 
-                           (order_id, session_id, timestamp, created_at, game_title, event_ticker,
+                           (trade_id, order_id, session_id, timestamp, created_at, game_title, event_ticker,
                             market_type, market_ticker, side, label, order_type, price, count,
-                            total_cost, status, payout, pnl, latency_ms, source)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                        (oid, active_id, ts, created_str, "Kalshi Account Trade", "",
-                         mtype, ticker, side, ticker, "imported", price, cnt,
-                         cost, st, po, pl, 0.0, "kalshi_sync")
+                            total_cost, fee_cost, status, payout, pnl, latency_ms, source)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (trade_id, order_id, sess_id, ts, created_str, g_title, e_ticker,
+                         mtype, ticker, side, label, order_type, price, cnt,
+                         cost, fee, st, po, pl, 0.0, "kalshi_sync")
                     )
                     imported_count += 1
+                else:
+                    conn.execute(
+                        """UPDATE trades SET status = ?, payout = ?, pnl = ?, session_id = COALESCE(session_id, ?)
+                           WHERE trade_id = ?""",
+                        (st, po, pl, sess_id, trade_id)
+                    )
+                    updated_count += 1
+
             conn.commit()
 
         return {

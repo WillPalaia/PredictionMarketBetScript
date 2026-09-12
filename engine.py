@@ -433,7 +433,8 @@ class FastBetEngine:
         if order_result.get("success"):
             order_result["total_cost"] = round(display_price * order_result["count"], 2)
             try:
-                AnalyticsManager.record_trade(order_result)
+                # Offload to background thread pool to guarantee ZERO latency impact on critical order execution path
+                asyncio.create_task(asyncio.to_thread(AnalyticsManager.record_trade, order_result.copy()))
             except Exception as e:
                 print(f"[Engine] Analytics record error: {e}")
         else:

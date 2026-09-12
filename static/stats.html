@@ -866,8 +866,9 @@
             pnlFormatted = `<span style="color: #8b949e; font-family: monospace;">$0.00</span>`;
           }
 
-          const orderTypeIcon = t.order_type === 'dynamic' ? '⚡ Dynamic' : '🎯 Limit';
+          const orderTypeIcon = t.order_type === 'dynamic' ? '⚡ Dynamic' : (t.order_type === 'taker' ? '⚡ Taker' : '🎯 Limit');
           const latencyStr = t.latency_ms > 0 ? `${Math.round(t.latency_ms)}ms` : '--';
+          const countDisplay = Number.isInteger(Number(t.count)) ? Number(t.count) : Number(t.count).toFixed(2);
 
           tr.innerHTML = `
             <td style="color: #8b949e; font-family: monospace;">${timeFormatted}</td>
@@ -877,7 +878,7 @@
               <div style="font-size: 10px; color: #8b949e; text-transform: uppercase;">${t.market_type} (${t.side.toUpperCase()})</div>
             </td>
             <td><span class="badge-type">${orderTypeIcon}</span></td>
-            <td style="font-family: monospace; font-weight: 700;">${priceCents}¢ <span style="color: #8b949e;">× ${t.count}</span></td>
+            <td style="font-family: monospace; font-weight: 700;">${priceCents}¢ <span style="color: #8b949e;">× ${countDisplay}</span></td>
             <td style="font-family: monospace;">$${t.total_cost.toFixed(2)}</td>
             <td>
               <div>${statusBadge}</div>
