@@ -58,6 +58,9 @@ def init_db():
                 FOREIGN KEY (session_id) REFERENCES sessions(id)
             )
         """)
+        # Ensure market_type is properly set for historical rows
+        cursor.execute("UPDATE trades SET market_type = 'spread' WHERE market_ticker LIKE '%SPREAD%' AND market_type != 'spread'")
+        cursor.execute("UPDATE trades SET market_type = 'total' WHERE (market_ticker LIKE '%TOTAL%' OR market_ticker LIKE '%OVER%' OR market_ticker LIKE '%UNDER%') AND market_type != 'total'")
         conn.commit()
 
 
@@ -298,7 +301,7 @@ class AnalyticsManager:
         timeline = []
         for t in chronological:
             cumulative = round(cumulative + t["pnl"], 2)
-            time_str = datetime.fromtimestamp(t["timestamp"]).strftime("%I:%M %p")
+            time_str = datetime.fromtimestamp(t["timestamp"]).strftime("%b %d, %I:%M %p")
             timeline.append({
                 "time": time_str,
                 "pnl": t["pnl"],
@@ -427,7 +430,26 @@ class AnalyticsManager:
                     price_cents = f.get("yes_price") if side == "yes" else f.get("no_price", 50)
                     price = float(price_cents) / 100.0 if price_cents else 0.50
                     cost = round(price * cnt, 2)
+
+                    # Infer market type from ticker
+                    ticker_upper = ticker.upper()
+                    if "SPREAD" in ticker_upper:
+                        mtype = "spread"
+                    elif "TOTAL" in ticker_upper or "OVER" in ticker_upper or "UNDER" in ticker_upper:
+                        mtype = "total"
+                    else:
+                        mtype = "moneyline"
+
+                    # Parse execution timestamp
+                    created_raw = f.get("created_time")
                     ts = time.time()
+                    if created_raw:
+                        try:
+                            clean_iso = str(created_raw).replace("Z", "+00:00")
+                            dt = datetime.fromisoformat(clean_iso)
+                            ts = dt.timestamp()
+                        except Exception:
+                            ts = time.time()
                     created_str = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
 
                     # Check if already settled
@@ -453,7 +475,7 @@ class AnalyticsManager:
                             total_cost, status, payout, pnl, latency_ms, source)
                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (oid, active_id, ts, created_str, "Kalshi Account Trade", "",
-                         "moneyline", ticker, side, ticker, "imported", price, cnt,
+                         mtype, ticker, side, ticker, "imported", price, cnt,
                          cost, st, po, pl, 0.0, "kalshi_sync")
                     )
                     imported_count += 1
