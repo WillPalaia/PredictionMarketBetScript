@@ -462,6 +462,114 @@ class KalshiClient(BaseExchange):
             }
         return {"ticker": ticker, "error": resp.text, "status_code": resp.status_code}
 
+    async def get_orderbook(self, ticker: str, depth: int = 5) -> Dict[str, Any]:
+        """
+        Fetches real-time L2 orderbook depth for a contract ticker.
+        Parses yes_dollars and no_dollars into structured YES and NO Bids/Asks.
+        """
+        if self.client is None:
+            await self.initialize()
+
+        if self.simulation_mode and not self.auth.is_configured:
+            return {
+                "ticker": ticker,
+                "status": "success",
+                "yes_bids": [[0.49, 12500], [0.48, 25000], [0.47, 45000], [0.46, 15000]],
+                "yes_asks": [[0.51, 18200], [0.52, 32000], [0.53, 50000], [0.54, 20000]],
+                "no_bids": [[0.49, 18200], [0.48, 32000], [0.47, 50000], [0.46, 20000]],
+                "no_asks": [[0.51, 12500], [0.52, 25000], [0.53, 45000], [0.54, 15000]],
+                "best_yes_bid": 0.49,
+                "best_yes_ask": 0.51,
+                "total_yes_bid_depth": 97500,
+                "total_yes_ask_depth": 120200,
+                "spread_cents": 2,
+                "timestamp": time.time()
+            }
+
+        path = f"/markets/{ticker}/orderbook"
+        headers = self._get_auth_headers("GET", path)
+        try:
+            resp = await self.client.get(path, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                ob = data.get("orderbook_fp", data.get("orderbook", {}))
+                raw_yes = ob.get("yes_dollars", [])
+                raw_no = ob.get("no_dollars", [])
+
+                # YES Bids (descending by price)
+                yes_bids = []
+                for item in raw_yes:
+                    try:
+                        p = float(item[0])
+                        s = float(item[1])
+                        if s > 0:
+                            yes_bids.append([round(p, 4), int(round(s))])
+                    except (ValueError, TypeError, IndexError):
+                        continue
+                yes_bids.sort(key=lambda x: x[0], reverse=True)
+
+                # YES Asks (derived from NO bids, ascending by price)
+                yes_asks = []
+                for item in raw_no:
+                    try:
+                        p = float(item[0])
+                        s = float(item[1])
+                        if s > 0:
+                            yes_asks.append([round(1.0 - p, 4), int(round(s))])
+                    except (ValueError, TypeError, IndexError):
+                        continue
+                yes_asks.sort(key=lambda x: x[0])
+
+                # NO Bids (descending by price)
+                no_bids = []
+                for item in raw_no:
+                    try:
+                        p = float(item[0])
+                        s = float(item[1])
+                        if s > 0:
+                            no_bids.append([round(p, 4), int(round(s))])
+                    except (ValueError, TypeError, IndexError):
+                        continue
+                no_bids.sort(key=lambda x: x[0], reverse=True)
+
+                # NO Asks (derived from YES bids, ascending by price)
+                no_asks = []
+                for item in raw_yes:
+                    try:
+                        p = float(item[0])
+                        s = float(item[1])
+                        if s > 0:
+                            no_asks.append([round(1.0 - p, 4), int(round(s))])
+                    except (ValueError, TypeError, IndexError):
+                        continue
+                no_asks.sort(key=lambda x: x[0])
+
+                total_yes_bid_depth = sum(x[1] for x in yes_bids[:depth])
+                total_yes_ask_depth = sum(x[1] for x in yes_asks[:depth])
+                best_yes_bid = yes_bids[0][0] if yes_bids else None
+                best_yes_ask = yes_asks[0][0] if yes_asks else None
+                spread_cents = round((best_yes_ask - best_yes_bid) * 100) if (best_yes_bid is not None and best_yes_ask is not None) else None
+
+                return {
+                    "ticker": ticker,
+                    "status": "success",
+                    "yes_bids": yes_bids[:depth],
+                    "yes_asks": yes_asks[:depth],
+                    "no_bids": no_bids[:depth],
+                    "no_asks": no_asks[:depth],
+                    "best_yes_bid": best_yes_bid,
+                    "best_yes_ask": best_yes_ask,
+                    "total_yes_bid_depth": total_yes_bid_depth,
+                    "total_yes_ask_depth": total_yes_ask_depth,
+                    "spread_cents": spread_cents,
+                    "timestamp": time.time()
+                }
+            elif resp.status_code == 429:
+                return {"ticker": ticker, "status": "rate_limited", "yes_bids": [], "yes_asks": []}
+        except Exception as e:
+            return {"ticker": ticker, "status": "error", "error": str(e), "yes_bids": [], "yes_asks": []}
+        return {"ticker": ticker, "status": "unavailable", "yes_bids": [], "yes_asks": []}
+
     async def place_order(
         self,
         ticker: str,

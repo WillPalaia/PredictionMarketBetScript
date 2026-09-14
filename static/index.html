@@ -506,15 +506,229 @@
       opacity: 1 !important;
     }
 
+    /* Live Order Book & Liquidity Radar */
+    .orderbook-panel {
+      background: #0e131b;
+      border: 1px solid #21262d;
+      border-radius: 12px;
+      margin: 4px 10px 6px 10px;
+      padding: 7px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .orderbook-panel.pulled-alert {
+      border-color: #f85149 !important;
+      box-shadow: 0 0 16px rgba(248, 81, 73, 0.4) !important;
+      animation: alert-pulse 0.6s infinite alternate;
+    }
+
+    @keyframes alert-pulse {
+      0% { border-color: #f85149; background: rgba(218, 54, 51, 0.15); }
+      100% { border-color: #d29922; background: #0e131b; }
+    }
+
+    .orderbook-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .ob-title-box {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .ob-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: #c9d1d9;
+      letter-spacing: 0.5px;
+    }
+
+    .ob-ticker-badge {
+      font-size: 10px;
+      font-family: monospace;
+      color: #8b949e;
+      background: #161b22;
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid #30363d;
+      max-width: 130px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ob-status-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ob-status-badge {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(46, 160, 67, 0.15);
+      border: 1px solid rgba(46, 160, 67, 0.35);
+      color: #3fb950;
+      white-space: nowrap;
+      letter-spacing: 0.3px;
+    }
+
+    .ob-status-badge.pulled {
+      background: rgba(248, 81, 73, 0.2);
+      border-color: #f85149;
+      color: #ff7b72;
+      animation: pulse 0.8s infinite;
+    }
+
+    .ob-side-toggles {
+      display: flex;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 1px;
+      gap: 2px;
+    }
+
+    .ob-toggle-btn {
+      background: transparent;
+      border: none;
+      color: #8b949e;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .ob-toggle-btn.active {
+      background: #21262d;
+      color: #fff;
+    }
+
+    /* Radar Strip */
+    .ob-radar-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+
+    .ob-radar-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .ob-radar-label {
+      font-size: 9px;
+      font-weight: 700;
+      color: #8b949e;
+      text-transform: uppercase;
+    }
+
+    .ob-radar-val {
+      font-size: 12px;
+      font-weight: 800;
+      font-family: monospace;
+    }
+
+    .ob-radar-val.bid { color: #3fb950; }
+    .ob-radar-val.ask { color: #f85149; }
+    .ob-radar-val.safe { color: #e3b341; }
+
+    /* Ladder Columns */
+    .ob-ladder-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .ob-ladder-col {
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .ob-ladder-head {
+      display: flex;
+      justify-content: space-between;
+      padding: 2px 6px;
+      font-size: 9px;
+      font-weight: 800;
+      color: #8b949e;
+      background: #0d1117;
+      border-bottom: 1px solid #21262d;
+      letter-spacing: 0.5px;
+    }
+
+    .ob-ladder-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      padding: 2px 0;
+    }
+
+    .ob-row {
+      position: relative;
+      display: flex;
+      justify-content: space-between;
+      padding: 1px 6px;
+      font-size: 11px;
+      font-family: monospace;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .ob-row-bar {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      pointer-events: none;
+      opacity: 0.28;
+      transition: width 0.12s ease;
+    }
+
+    .ob-ladder-col.bids .ob-row-bar {
+      right: 0;
+      background: #238636;
+    }
+
+    .ob-ladder-col.asks .ob-row-bar {
+      left: 0;
+      background: #da3633;
+    }
+
+    .ob-row-price.bid { color: #3fb950; z-index: 1; }
+    .ob-row-price.ask { color: #f85149; z-index: 1; }
+    .ob-row-size { color: #f0f6fc; z-index: 1; }
+
     /* Footer Execution Log */
     footer {
       background: #161b22;
-      border-top: 2px solid #30363d;
-      padding: 8px 12px;
-      font-size: 13px;
+      border-top: 1px solid #30363d;
+      padding: 6px 10px;
+      font-size: 12px;
       flex-shrink: 0;
-      min-height: 125px;
-      max-height: 155px;
+      min-height: 80px;
+      max-height: 110px;
       display: flex;
       flex-direction: column;
       box-shadow: 0 -4px 12px rgba(0,0,0,0.3);
@@ -806,6 +1020,48 @@
     </button>
   </main>
 
+  <!-- Live Order Book & Liquidity Radar -->
+  <section class="orderbook-panel" id="orderbookPanel">
+    <div class="orderbook-header">
+      <div class="ob-title-box">
+        <span class="pulse-dot"></span>
+        <span class="ob-title" id="obTitle">ORDER BOOK</span>
+        <span class="ob-ticker-badge" id="obTickerBadge">--</span>
+      </div>
+      <div class="ob-status-box">
+        <span class="ob-status-badge" id="obStatusBadge">🟢 DEEP LIQUIDITY</span>
+        <div class="ob-side-toggles">
+          <button class="ob-toggle-btn active" id="btnObSideA">SIDE A</button>
+          <button class="ob-toggle-btn" id="btnObSideB">SIDE B</button>
+        </div>
+      </div>
+    </div>
+    <div class="ob-radar-strip">
+      <div class="ob-radar-item">
+        <span class="ob-radar-label">ASK DEPTH (TOP)</span>
+        <span class="ob-radar-val ask" id="obTopAskVal">--</span>
+      </div>
+      <div class="ob-radar-item center" style="align-items: center;">
+        <span class="ob-radar-label">SPREAD</span>
+        <span class="ob-radar-val" id="obSpreadVal">--¢</span>
+      </div>
+      <div class="ob-radar-item right" style="align-items: flex-end;">
+        <span class="ob-radar-label">MAX 1¢ SLIPPAGE BET</span>
+        <span class="ob-radar-val safe" id="obSafeBetVal">$--</span>
+      </div>
+    </div>
+    <div class="ob-ladder-grid">
+      <div class="ob-ladder-col bids">
+        <div class="ob-ladder-head"><span>BID (BUY)</span><span>SIZE</span></div>
+        <div class="ob-ladder-rows" id="obBidRows"><div style="padding: 6px; font-size: 10px; color: #8b949e; text-align: center;">Connecting...</div></div>
+      </div>
+      <div class="ob-ladder-col asks">
+        <div class="ob-ladder-head"><span>ASK (SELL)</span><span>SIZE</span></div>
+        <div class="ob-ladder-rows" id="obAskRows"><div style="padding: 6px; font-size: 10px; color: #8b949e; text-align: center;">Connecting...</div></div>
+      </div>
+    </div>
+  </section>
+
   <!-- Recent Order Feedback Footer -->
   <footer>
     <div class="log-header">
@@ -846,6 +1102,9 @@
     let autoFollowTotal = true;         // Automatically track most liquid total line
     let activeEvent = null;
     let liveBalance = 0.0;
+    let activeOrderbookSide = 'A';      // 'A' or 'B'
+    let lastOrderbookData = null;
+    let activeWatchedTicker = null;
 
     let ws = null;
     let pingInterval = null;
@@ -882,6 +1141,19 @@
     const sideASub = document.getElementById('sideASub');
     const sideBSub = document.getElementById('sideBSub');
 
+    // Live Order Book & Liquidity Radar Elements
+    const orderbookPanel = document.getElementById('orderbookPanel');
+    const obTitle = document.getElementById('obTitle');
+    const obTickerBadge = document.getElementById('obTickerBadge');
+    const obStatusBadge = document.getElementById('obStatusBadge');
+    const btnObSideA = document.getElementById('btnObSideA');
+    const btnObSideB = document.getElementById('btnObSideB');
+    const obTopAskVal = document.getElementById('obTopAskVal');
+    const obSpreadVal = document.getElementById('obSpreadVal');
+    const obSafeBetVal = document.getElementById('obSafeBetVal');
+    const obBidRows = document.getElementById('obBidRows');
+    const obAskRows = document.getElementById('obAskRows');
+
     const activeGameTitle = document.getElementById('activeGameTitle');
     const pingDisplay = document.getElementById('pingDisplay');
     const connStatus = document.getElementById('connStatus');
@@ -894,6 +1166,23 @@
     const btnCloseModal = document.getElementById('btnCloseModal');
     const gameSearch = document.getElementById('gameSearch');
     const gameList = document.getElementById('gameList');
+
+    // Orderbook Side Toggle Listeners
+    btnObSideA.addEventListener('click', () => {
+      activeOrderbookSide = 'A';
+      btnObSideA.classList.add('active');
+      btnObSideB.classList.remove('active');
+      vibrate(15);
+      if (lastOrderbookData) renderOrderbook(lastOrderbookData);
+    });
+
+    btnObSideB.addEventListener('click', () => {
+      activeOrderbookSide = 'B';
+      btnObSideB.classList.add('active');
+      btnObSideA.classList.remove('active');
+      vibrate(15);
+      if (lastOrderbookData) renderOrderbook(lastOrderbookData);
+    });
 
     // Haptics helper
     function vibrate(pattern) {
@@ -1290,6 +1579,166 @@
           sideBSub.textContent = formatSubtitle(isDynamic, isMax, underAsk, targetUnder, capCents, bufCents, underBid);
         }
       }
+
+      // Sync real-time orderbook ticker with active market selection
+      syncOrderbookTicker();
+    }
+
+    // Sync active watched contract ticker for the order book stream
+    function syncOrderbookTicker() {
+      if (!activeEvent) return;
+
+      let targetTicker = null;
+      let labelA = 'SIDE A';
+      let labelB = 'SIDE B';
+
+      if (activeMarketType === 'moneyline') {
+        targetTicker = activeEvent.team_a?.ticker;
+        labelA = (activeEvent.team_a?.name || 'TEAM A').split(' ').pop().substring(0, 8);
+        labelB = (activeEvent.team_b?.name || 'TEAM B').split(' ').pop().substring(0, 8);
+        obTitle.textContent = 'MONEYLINE DEPTH';
+      } else if (activeMarketType === 'spread') {
+        const spreadLines = activeEvent.spread || [];
+        const activeLine = spreadLines[activeSpreadIdx];
+        targetTicker = activeLine?.ticker;
+        labelA = (activeLine?.fav_label || 'FAV').substring(0, 8);
+        labelB = (activeLine?.dog_label || 'DOG').substring(0, 8);
+        obTitle.textContent = 'SPREAD DEPTH';
+      } else if (activeMarketType === 'total') {
+        const totalLines = activeEvent.total || [];
+        const activeLine = totalLines[activeTotalIdx];
+        targetTicker = activeLine?.ticker;
+        labelA = (activeLine?.over_label || 'OVER').substring(0, 8);
+        labelB = (activeLine?.under_label || 'UNDER').substring(0, 8);
+        obTitle.textContent = 'TOTAL DEPTH';
+      }
+
+      btnObSideA.textContent = labelA;
+      btnObSideB.textContent = labelB;
+
+      if (targetTicker) {
+        obTickerBadge.textContent = targetTicker;
+        if (targetTicker !== activeWatchedTicker) {
+          activeWatchedTicker = targetTicker;
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: 'watch_orderbook', ticker: targetTicker }));
+          }
+        }
+      }
+    }
+
+    // Render live orderbook ladder and liquidity radar
+    function renderOrderbook(ob) {
+      if (!ob || ob.status !== 'success') {
+        return;
+      }
+      lastOrderbookData = ob;
+
+      if (ob.ticker && obTickerBadge.textContent !== ob.ticker) {
+        obTickerBadge.textContent = ob.ticker;
+      }
+
+      // Kalshi single-book: YES bids/asks for Side A, NO bids/asks for Side B
+      const bids = (activeOrderbookSide === 'A' ? ob.yes_bids : ob.no_bids) || [];
+      const asks = (activeOrderbookSide === 'A' ? ob.yes_asks : ob.no_asks) || [];
+
+      const topAsk = asks.length > 0 ? asks[0] : null; // [price, size]
+      const topBid = bids.length > 0 ? bids[0] : null; // [price, size]
+
+      // 1. Radar: Spread
+      if (topAsk && topBid) {
+        const spreadCents = Math.round((topAsk[0] - topBid[0]) * 100);
+        obSpreadVal.textContent = `${spreadCents}¢`;
+      } else {
+        obSpreadVal.textContent = '--¢';
+      }
+
+      // 2. Radar: Immediate Top Ask Depth
+      if (topAsk) {
+        obTopAskVal.textContent = `${formatSize(topAsk[1])} @ ${Math.round(topAsk[0] * 100)}¢`;
+      } else {
+        obTopAskVal.textContent = '--';
+      }
+
+      // 3. Radar: Max Bet Size within 1¢ slippage
+      if (topAsk) {
+        const maxPrice = topAsk[0] + 0.0101;
+        let safeDollars = 0;
+        for (const [p, s] of asks) {
+          if (p <= maxPrice) {
+            safeDollars += p * s;
+          }
+        }
+        obSafeBetVal.textContent = `$${Math.floor(safeDollars).toLocaleString()}`;
+      } else {
+        obSafeBetVal.textContent = '$--';
+      }
+
+      // 4. Status Badge & Pull Alert
+      if (ob.liquidity_pulled) {
+        orderbookPanel.classList.add('pulled-alert');
+        obStatusBadge.className = 'ob-status-badge pulled';
+        obStatusBadge.textContent = `🚨 PULLED (-${ob.drop_pct || 35}%)`;
+      } else {
+        orderbookPanel.classList.remove('pulled-alert');
+        obStatusBadge.className = 'ob-status-badge';
+        const topSize = topAsk ? topAsk[1] : 0;
+        if (topSize >= 5000) {
+          obStatusBadge.textContent = '🟢 DEEP LIQUIDITY';
+          obStatusBadge.style.color = '#3fb950';
+          obStatusBadge.style.borderColor = 'rgba(46, 160, 67, 0.35)';
+        } else if (topSize >= 1000) {
+          obStatusBadge.textContent = '🟡 MODERATE';
+          obStatusBadge.style.color = '#e3b341';
+          obStatusBadge.style.borderColor = 'rgba(210, 153, 34, 0.35)';
+        } else {
+          obStatusBadge.textContent = '⚠️ THIN BOOK';
+          obStatusBadge.style.color = '#ff7b72';
+          obStatusBadge.style.borderColor = 'rgba(248, 81, 73, 0.35)';
+        }
+      }
+
+      // 5. Depth Ladder Rows (Top 4 rows)
+      const visibleBids = bids.slice(0, 4);
+      const visibleAsks = asks.slice(0, 4);
+      const allSizes = [...visibleBids.map(b => b[1]), ...visibleAsks.map(a => a[1])];
+      const maxSize = allSizes.length > 0 ? Math.max(...allSizes, 1) : 1;
+
+      // Render Bids
+      if (visibleBids.length === 0) {
+        obBidRows.innerHTML = '<div style="padding: 6px; font-size: 10px; color: #8b949e; text-align: center;">No Bids</div>';
+      } else {
+        obBidRows.innerHTML = '';
+        visibleBids.forEach(([price, size]) => {
+          const pct = Math.min(100, Math.max(8, Math.round((size / maxSize) * 100)));
+          const row = document.createElement('div');
+          row.className = 'ob-row';
+          row.innerHTML = `
+            <div class="ob-row-bar" style="width: ${pct}%;"></div>
+            <span class="ob-row-price bid">${Math.round(price * 100)}¢</span>
+            <span class="ob-row-size">${formatSize(size)}</span>
+          `;
+          obBidRows.appendChild(row);
+        });
+      }
+
+      // Render Asks
+      if (visibleAsks.length === 0) {
+        obAskRows.innerHTML = '<div style="padding: 6px; font-size: 10px; color: #8b949e; text-align: center;">No Asks</div>';
+      } else {
+        obAskRows.innerHTML = '';
+        visibleAsks.forEach(([price, size]) => {
+          const pct = Math.min(100, Math.max(8, Math.round((size / maxSize) * 100)));
+          const row = document.createElement('div');
+          row.className = 'ob-row';
+          row.innerHTML = `
+            <div class="ob-row-bar" style="width: ${pct}%;"></div>
+            <span class="ob-row-price ask">${Math.round(price * 100)}¢</span>
+            <span class="ob-row-size">${formatSize(size)}</span>
+          `;
+          obAskRows.appendChild(row);
+        });
+      }
     }
 
     // FastBet Execution: Touch handlers with debounce lockout
@@ -1489,6 +1938,7 @@
         connStatus.textContent = 'Online';
         connStatus.style.color = '#3fb950';
         startPing();
+        syncOrderbookTicker();
       };
 
       ws.onmessage = (event) => {
@@ -1518,6 +1968,8 @@
               }
               renderActiveMarket();
             }
+          } else if (data.type === 'orderbook_update') {
+            if (data.orderbook) renderOrderbook(data.orderbook);
           } else if (data.type === 'order_executed') {
             handleOrderResult(data.order);
             fetch('/api/balance').then(r => r.json()).then(b => {
@@ -1586,6 +2038,10 @@
         }
 
         renderActiveMarket();
+      }
+
+      if (state.orderbook) {
+        renderOrderbook(state.orderbook);
       }
     }
 

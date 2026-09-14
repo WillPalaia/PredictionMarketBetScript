@@ -28,6 +28,11 @@ class FastBetEngine:
         self.poll_interval = POLL_INTERVAL_SECONDS
         self._ml_poll_task: Optional[asyncio.Task] = None
         self._deriv_poll_task: Optional[asyncio.Task] = None
+        self._orderbook_poll_task: Optional[asyncio.Task] = None
+        self.active_orderbook_ticker: Optional[str] = None
+        self.latest_orderbook: Dict[str, Any] = {}
+        self._prev_ask_depth: float = 0.0
+        self._prev_ask_depth_time: float = 0.0
         self._last_ml_broadcast: float = 0.0
         self._subscribers: List[Callable[[Dict[str, Any]], Any]] = []
         self.order_history: List[Dict[str, Any]] = []
@@ -43,8 +48,10 @@ class FastBetEngine:
         # Launch dedicated concurrent split-stream loops:
         # 1. Ultra-fast Moneyline Hot Loop (~65ms)
         # 2. Derivatives & Liquidity Scoring Loop (~280ms)
+        # 3. Real-Time Order Book & Liquidity Radar Loop (~150ms)
         self._ml_poll_task = asyncio.create_task(self._moneyline_stream_loop())
         self._deriv_poll_task = asyncio.create_task(self._derivatives_stream_loop())
+        self._orderbook_poll_task = asyncio.create_task(self._orderbook_stream_loop())
 
     async def refresh_balance(self) -> float:
         """Fetches live account balance from Kalshi and caches it."""
@@ -62,6 +69,8 @@ class FastBetEngine:
             self._ml_poll_task.cancel()
         if self._deriv_poll_task:
             self._deriv_poll_task.cancel()
+        if self._orderbook_poll_task:
+            self._orderbook_poll_task.cancel()
         await self.client.close()
 
     def subscribe(self, callback: Callable[[Dict[str, Any]], Any]):
@@ -278,6 +287,57 @@ class FastBetEngine:
             except Exception as e:
                 await asyncio.sleep(0.2)
             await asyncio.sleep(0.28)
+
+    def set_orderbook_ticker(self, ticker: str):
+        """Switches the live order book stream to the active betting line ticker."""
+        if ticker and ticker != self.active_orderbook_ticker:
+            self.active_orderbook_ticker = ticker
+            self._prev_ask_depth = 0.0
+            self._prev_ask_depth_time = 0.0
+
+    async def _orderbook_stream_loop(self):
+        """
+        High-frequency orderbook depth streaming loop running at ~150ms.
+        Continuously polls L2 orderbook for the currently active betting line,
+        detects pre-play liquidity pulls, and broadcasts depth ladders to the phone.
+        """
+        while self.is_running:
+            try:
+                target_ticker = self.active_orderbook_ticker
+                if not target_ticker and self.active_event:
+                    target_ticker = self.active_event.get("team_a", {}).get("ticker")
+
+                if target_ticker and target_ticker != "MANUAL":
+                    ob = await self.client.get_orderbook(target_ticker, depth=5)
+                    if ob.get("status") == "success":
+                        curr_ask_depth = ob.get("total_yes_ask_depth", 0)
+                        now = time.time()
+
+                        # Pre-play Liquidity Pull Detector
+                        liquidity_pulled = False
+                        drop_pct = 0.0
+                        if self._prev_ask_depth > 500 and (now - self._prev_ask_depth_time <= 2.5):
+                            if curr_ask_depth < self._prev_ask_depth * 0.65:
+                                liquidity_pulled = True
+                                drop_pct = round(((self._prev_ask_depth - curr_ask_depth) / self._prev_ask_depth) * 100.0, 1)
+
+                        ob["liquidity_pulled"] = liquidity_pulled
+                        ob["drop_pct"] = drop_pct
+                        self.latest_orderbook = ob
+
+                        if not liquidity_pulled or (now - self._prev_ask_depth_time > 4.0):
+                            self._prev_ask_depth = curr_ask_depth
+                            self._prev_ask_depth_time = now
+
+                        await self._broadcast({
+                            "type": "orderbook_update",
+                            "orderbook": ob
+                        })
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                await asyncio.sleep(0.1)
+            await asyncio.sleep(0.15)
 
     async def execute_direct_bet(
         self,
@@ -546,5 +606,7 @@ class FastBetEngine:
             "primary_spread_idx": self.active_event.get("primary_spread_idx", 0) if self.active_event else 0,
             "primary_total_idx": self.active_event.get("primary_total_idx", 0) if self.active_event else 0,
             "balance": self.cached_balance,
+            "orderbook": self.latest_orderbook,
+            "active_orderbook_ticker": self.active_orderbook_ticker,
             "history": self.order_history[:10]
         }

@@ -118,6 +118,16 @@ async def set_manual_game(req: ManualGameRequest):
     return {"success": True, "active_event": engine.active_event}
 
 
+@app.get("/api/orderbook")
+async def get_orderbook(ticker: Optional[str] = None):
+    t = ticker or engine.active_orderbook_ticker
+    if not t and engine.active_event:
+        t = engine.active_event.get("team_a", {}).get("ticker")
+    if not t:
+        return {"error": "No contract ticker specified"}
+    return await engine.client.get_orderbook(t, depth=5)
+
+
 @app.post("/api/bet")
 async def place_bet(req: BetRequest):
     result = await engine.execute_direct_bet(
@@ -219,6 +229,11 @@ async def websocket_endpoint(websocket: WebSocket):
             if action == "ping":
                 # Heartbeat to measure mobile-to-server latency
                 await websocket.send_json({"type": "pong"})
+
+            elif action == "watch_orderbook":
+                target_ticker = data.get("ticker")
+                if target_ticker:
+                    engine.set_orderbook_ticker(target_ticker)
 
             elif action == "bet":
                 # 1-TAP INSTANT EXECUTION
